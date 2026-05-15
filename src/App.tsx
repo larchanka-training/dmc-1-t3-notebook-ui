@@ -1,30 +1,8 @@
-import "./App.css";
+import { createBrowserRouter, RouterProvider } from "react-router-dom";
+import { routes } from "./app/routes";
 
-const starterTasks = [
-  "Define your app goal in one sentence.",
-  "Create your first feature component.",
-  "Connect real data or mock API responses."
-];
+const router = createBrowserRouter(routes);
 
-function App() {
-  return (
-    <main className="app">
-      <section className="card">
-        <h1>Modern Software Development: React Starter</h1>
-        <p>
-          This template gives you a clean baseline. Replace this screen with
-          your project and extend the setup as needed.
-        </p>
-
-        <h2>Suggested first steps</h2>
-        <ol>
-          {starterTasks.map((task) => (
-            <li key={task}>{task}</li>
-          ))}
-        </ol>
-      </section>
-    </main>
-  );
+export default function App() {
+  return <RouterProvider router={router} />;
 }
-
-export default App;
