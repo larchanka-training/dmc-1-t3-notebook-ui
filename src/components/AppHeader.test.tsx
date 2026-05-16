@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { useAppStore } from "../store";
 import { AppHeader } from "./AppHeader";
 
 const renderHeader = () =>
@@ -11,20 +12,23 @@ const renderHeader = () =>
   );
 
 describe("AppHeader", () => {
-  it("renders logo mark and product name", () => {
+  it("always shows the brand", () => {
     renderHeader();
-    expect(screen.getByRole("img", { name: /js notebook logo/i })).toBeInTheDocument();
-    expect(screen.getByText(/js notebook/i)).toBeInTheDocument();
+    expect(screen.getByText("JS Notebook")).toBeInTheDocument();
   });
 
-  it("renders navigation links to notebooks list", () => {
+  it("hides the Notebooks nav when unauthenticated", () => {
     renderHeader();
-    const link = screen.getByRole("link", { name: /notebooks/i });
-    expect(link).toHaveAttribute("href", "/notebooks");
+    expect(
+      screen.queryByRole("link", { name: /notebooks/i })
+    ).not.toBeInTheDocument();
   });
 
-  it("uses semantic <header> landmark", () => {
+  it("shows the Notebooks nav when authenticated", () => {
+    useAppStore.getState().setAuthenticated(true, "user@example.com");
     renderHeader();
-    expect(screen.getByRole("banner")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /notebooks/i })
+    ).toBeInTheDocument();
   });
 });

@@ -40,5 +40,6 @@ const initialStoreState = useAppStore.getInitialState();
 
 afterEach(() => {
   cleanup();
+  globalThis.localStorage.clear();
   useAppStore.setState(initialStoreState, true);
 });

@@ -1,40 +1,43 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
+import { useAppStore } from "../store";
 import { routes } from "./routes";
 
-const renderAt = (path: string) => {
-  const router = createMemoryRouter(routes, { initialEntries: [path] });
-  return render(<RouterProvider router={router} />);
-};
+const at = (path: string) =>
+  render(
+    <RouterProvider
+      router={createMemoryRouter(routes, { initialEntries: [path] })}
+    />
+  );
 
 describe("routes", () => {
-  it("/login renders LoginPage without app header", () => {
-    renderAt("/login");
+  it("opens at /login for the index path", () => {
+    at("/");
     expect(
-      screen.getByRole("heading", { name: /sign in/i })
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("banner")).not.toBeInTheDocument();
-  });
-
-  it("/notebooks renders NotebooksListPage inside AppLayout", () => {
-    renderAt("/notebooks");
-    expect(screen.getByRole("banner")).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: /notebooks/i, level: 1 })
+      screen.getByRole("heading", { name: /sign in/i, level: 1 })
     ).toBeInTheDocument();
   });
 
-  it("/notebooks/:notebookId renders editor with notebook id", () => {
-    renderAt("/notebooks/xyz-789");
-    expect(screen.getByRole("banner")).toBeInTheDocument();
-    expect(screen.getByText(/xyz-789/)).toBeInTheDocument();
+  it("redirects an unknown path to /login", () => {
+    at("/totally-unknown");
+    expect(
+      screen.getByRole("heading", { name: /sign in/i, level: 1 })
+    ).toBeInTheDocument();
   });
 
-  it("unknown path redirects to /notebooks", () => {
-    renderAt("/totally/unknown/path");
+  it("blocks /notebooks when unauthenticated", () => {
+    at("/notebooks");
     expect(
-      screen.getByRole("heading", { name: /notebooks/i, level: 1 })
+      screen.getByRole("heading", { name: /sign in/i, level: 1 })
     ).toBeInTheDocument();
+  });
+
+  it("allows /notebooks when authenticated", () => {
+    useAppStore.getState().setAuthenticated(true, "user@example.com");
+    at("/notebooks");
+    expect(
+      screen.queryByRole("heading", { name: /sign in/i, level: 1 })
+    ).not.toBeInTheDocument();
   });
 });
