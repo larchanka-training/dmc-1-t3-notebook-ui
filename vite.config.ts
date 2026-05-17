@@ -12,6 +12,7 @@ export default defineConfig(({ mode }) => {
       host: env.VITE_HOST || "0.0.0.0",
       port,
       strictPort: true
+      allowedHosts: ["notebook.com"]
     },
     test: {
       environment: "jsdom",
