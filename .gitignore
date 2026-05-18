@@ -2,3 +2,7 @@ node_modules
 dist
 .DS_Store
 *.tsbuildinfo
+
+# tsc-emitted artifacts of vite.config.ts (source is vite.config.ts only)
+vite.config.js
+vite.config.d.ts
