@@ -252,7 +252,8 @@ Scope:
 
 - render a static/mock notebook editor page
 - render sample Markdown text blocks and JavaScript code blocks
-- show block-local action placeholders for add, delete, move, and run
+- support local in-memory add, delete, move, and edit block actions
+- keep run as a safe placeholder that updates output feedback without executing code
 - show an output area placeholder attached to code blocks
 - keep outputs separate from durable notebook block content
 - preserve desktop usability and the Notion-like product direction
@@ -272,7 +273,8 @@ Implementation checklist:
 - [x] Add sample notebook data using ordered `text` and `code` blocks.
 - [x] Add a static notebook editor page composition.
 - [x] Add text block and code block renderers with distinct visuals.
-- [x] Add block-local action cluster placeholders.
+- [x] Add block-local action cluster controls.
+- [x] Add local add text/code, delete, move up, move down, and edit behavior.
 - [x] Add run placeholder and output placeholder for code blocks.
 - [x] Add accessible labels and keyboard-reachable controls for block actions.
 - [x] Add UI tests for acceptance criteria and output separation.
@@ -289,4 +291,4 @@ Completion status:
 
 - Status: completed.
 - Verification: `npm run lint`, `npm test`, `npm run build`, `npm audit --audit-level=moderate`.
-- Browser smoke: verified the editor template at `http://127.0.0.1:5174`.
+- Browser smoke: verified the editor template and local block interactions at `http://127.0.0.1:5174`.

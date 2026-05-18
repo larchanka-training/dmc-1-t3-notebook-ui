@@ -113,6 +113,10 @@ button:disabled {
   opacity: 0.76;
 }
 
+.add-actions {
+  display: contents;
+}
+
 .notebook-block:focus-within .block-actions,
 .notebook-block:hover .block-actions {
   opacity: 1;
@@ -166,17 +170,31 @@ button:disabled {
   color: #bfccae;
 }
 
-.text-block pre,
+.text-block textarea,
 .code-source {
   margin: 0;
   white-space: pre-wrap;
 }
 
-.text-block pre {
+.text-block textarea,
+.code-source {
+  width: 100%;
+  border: 0;
+  resize: vertical;
+}
+
+.text-block textarea {
+  min-height: 7rem;
   color: var(--color-text-primary);
+  background: transparent;
   font-family: Georgia, "Times New Roman", serif;
   font-size: 1.12rem;
   line-height: 1.7;
+}
+
+.text-block textarea:focus,
+.code-source:focus {
+  outline: var(--block-selected-ring);
 }
 
 .code-header {
@@ -187,6 +205,7 @@ button:disabled {
 }
 
 .code-source {
+  min-height: 12rem;
   overflow-x: auto;
   border-radius: 14px;
   padding: var(--space-16);

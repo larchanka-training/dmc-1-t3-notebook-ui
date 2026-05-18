@@ -1,33 +1,93 @@
+import { useState } from "react";
 import {
+  createCodeBlock,
+  createOutputPlaceholder,
+  createTextBlock,
+  deleteBlock,
   getOutputForBlock,
+  insertBlockAfter,
+  moveBlock,
   notebookContentBlockIds,
-  outputBlockIds
+  outputBlockIds,
+  updateCodeBlockSource,
+  updateTextBlockMarkdown
 } from "../../entities/notebook/notebookModel";
 import {
   sampleNotebook,
   sampleOutputPlaceholders
 } from "../../entities/notebook/sampleNotebook";
-import type { CodeBlock, NotebookBlock, TextBlock } from "../../entities/notebook/types";
+import type { CodeBlock, Notebook, NotebookBlock, TextBlock } from "../../entities/notebook/types";
 import type { OutputPlaceholder } from "../../entities/output/types";
 import "./NotebookEditorPage.css";
 
-function BlockActionCluster({ block }: { block: NotebookBlock }) {
+type BlockActions = {
+  addBlockAfter: (blockId: string, type: NotebookBlock["type"]) => void;
+  deleteBlockById: (blockId: string) => void;
+  moveBlockById: (blockId: string, direction: "up" | "down") => void;
+  runBlock: (blockId: string) => void;
+  updateText: (blockId: string, markdown: string) => void;
+  updateCode: (blockId: string, source: string) => void;
+};
+
+function BlockActionCluster({
+  block,
+  isFirst,
+  isLast,
+  actions
+}: {
+  block: NotebookBlock;
+  isFirst: boolean;
+  isLast: boolean;
+  actions: BlockActions;
+}) {
   return (
-    <div className="block-actions" aria-label={`Actions for ${block.type} block`}>
-      <button type="button" aria-label={`Add block near ${block.id}`}>
-        +
-      </button>
-      <button type="button" aria-label={`Move ${block.id} up`}>
+    <div className="block-actions" aria-label={`Actions for ${block.id}`}>
+      <div className="add-actions" aria-label={`Add block after ${block.id}`}>
+        <button
+          type="button"
+          aria-label={`Add text block after ${block.id}`}
+          onClick={() => actions.addBlockAfter(block.id, "text")}
+        >
+          + Text
+        </button>
+        <button
+          type="button"
+          aria-label={`Add code block after ${block.id}`}
+          onClick={() => actions.addBlockAfter(block.id, "code")}
+        >
+          + Code
+        </button>
+      </div>
+      <button
+        type="button"
+        aria-label={`Move ${block.id} up`}
+        disabled={isFirst}
+        onClick={() => actions.moveBlockById(block.id, "up")}
+      >
         Up
       </button>
-      <button type="button" aria-label={`Move ${block.id} down`}>
+      <button
+        type="button"
+        aria-label={`Move ${block.id} down`}
+        disabled={isLast}
+        onClick={() => actions.moveBlockById(block.id, "down")}
+      >
         Down
       </button>
-      <button type="button" aria-label={`Delete ${block.id}`}>
+      <button
+        type="button"
+        aria-label={`Delete ${block.id}`}
+        onClick={() => actions.deleteBlockById(block.id)}
+      >
         Delete
       </button>
       {block.type === "code" ? (
-        <button type="button" className="run-action" aria-label={`Run ${block.id}`}>
+        <button
+          type="button"
+          className="run-action"
+          aria-label={`Run ${block.id}`}
+          onClick={() => actions.runBlock(block.id)}
+        >
           Run
         </button>
       ) : null}
@@ -35,37 +95,62 @@ function BlockActionCluster({ block }: { block: NotebookBlock }) {
   );
 }
 
-function MarkdownTextBlock({ block }: { block: TextBlock }) {
+function MarkdownTextBlock({
+  block,
+  updateText
+}: {
+  block: TextBlock;
+  updateText: BlockActions["updateText"];
+}) {
   return (
     <div className="block-body text-block" aria-label="Markdown text block">
-      <span className="block-kicker">Markdown</span>
-      <pre>{block.content.markdown}</pre>
+      <label className="block-kicker" htmlFor={`${block.id}-markdown`}>
+        Markdown
+      </label>
+      <textarea
+        id={`${block.id}-markdown`}
+        aria-label={`Markdown source for ${block.id}`}
+        value={block.content.markdown}
+        onChange={(event) => updateText(block.id, event.target.value)}
+      />
     </div>
   );
 }
 
 function CodeBlockView({
   block,
-  output
+  output,
+  runBlock,
+  updateCode
 }: {
   block: CodeBlock;
   output?: OutputPlaceholder;
+  runBlock: BlockActions["runBlock"];
+  updateCode: BlockActions["updateCode"];
 }) {
   return (
     <div className="block-body code-block" aria-label="JavaScript code block">
       <div className="code-header">
-        <span className="block-kicker">JavaScript</span>
+        <label className="block-kicker" htmlFor={`${block.id}-source`}>
+          JavaScript
+        </label>
         <button
           type="button"
           className="run-inline"
           aria-label={`Run block ${block.id}`}
+          onClick={() => runBlock(block.id)}
         >
           Run block
         </button>
       </div>
-      <pre className="code-source">
-        <code>{block.content.source}</code>
-      </pre>
+      <textarea
+        id={`${block.id}-source`}
+        className="code-source"
+        aria-label={`JavaScript source for ${block.id}`}
+        value={block.content.source}
+        spellCheck={false}
+        onChange={(event) => updateCode(block.id, event.target.value)}
+      />
       <section className="output-placeholder" aria-label={`Output area for ${block.id}`}>
         <span>Output</span>
         <p>{output?.label ?? "Output placeholder is intentionally empty."}</p>
@@ -74,24 +159,117 @@ function CodeBlockView({
   );
 }
 
-function NotebookBlockView({ block }: { block: NotebookBlock }) {
-  const output = getOutputForBlock(sampleOutputPlaceholders, block.id);
-
+function NotebookBlockView({
+  block,
+  index,
+  blockCount,
+  output,
+  actions
+}: {
+  block: NotebookBlock;
+  index: number;
+  blockCount: number;
+  output?: OutputPlaceholder;
+  actions: BlockActions;
+}) {
   return (
     <article className={`notebook-block notebook-block-${block.type}`}>
-      <BlockActionCluster block={block} />
+      <BlockActionCluster
+        block={block}
+        isFirst={index === 0}
+        isLast={index === blockCount - 1}
+        actions={actions}
+      />
       {block.type === "text" ? (
-        <MarkdownTextBlock block={block} />
+        <MarkdownTextBlock block={block} updateText={actions.updateText} />
       ) : (
-        <CodeBlockView block={block} output={output} />
+        <CodeBlockView
+          block={block}
+          output={output}
+          runBlock={actions.runBlock}
+          updateCode={actions.updateCode}
+        />
       )}
     </article>
   );
 }
 
 export function NotebookEditorPage() {
-  const contentBlockIds = notebookContentBlockIds(sampleNotebook);
-  const boundOutputIds = outputBlockIds(sampleOutputPlaceholders);
+  const [notebook, setNotebook] = useState<Notebook>(sampleNotebook);
+  const [outputs, setOutputs] = useState<OutputPlaceholder[]>(
+    sampleOutputPlaceholders
+  );
+  const [nextBlockNumber, setNextBlockNumber] = useState(1);
+
+  const createBlockId = (type: NotebookBlock["type"]) => {
+    const blockId = `blk_new_${type}_${nextBlockNumber}`;
+    setNextBlockNumber((current) => current + 1);
+    return blockId;
+  };
+
+  const actions: BlockActions = {
+    addBlockAfter: (blockId, type) => {
+      const newBlockId = createBlockId(type);
+      const newBlock =
+        type === "text" ? createTextBlock(newBlockId) : createCodeBlock(newBlockId);
+
+      setNotebook((currentNotebook) => ({
+        ...currentNotebook,
+        blocks: insertBlockAfter(currentNotebook.blocks, blockId, newBlock)
+      }));
+
+      if (newBlock.type === "code") {
+        setOutputs((currentOutputs) => [
+          ...currentOutputs,
+          createOutputPlaceholder(newBlock.id)
+        ]);
+      }
+    },
+    deleteBlockById: (blockId) => {
+      setNotebook((currentNotebook) => ({
+        ...currentNotebook,
+        blocks: deleteBlock(currentNotebook.blocks, blockId)
+      }));
+      setOutputs((currentOutputs) =>
+        currentOutputs.filter((output) => output.blockId !== blockId)
+      );
+    },
+    moveBlockById: (blockId, direction) => {
+      setNotebook((currentNotebook) => ({
+        ...currentNotebook,
+        blocks: moveBlock(currentNotebook.blocks, blockId, direction)
+      }));
+    },
+    runBlock: (blockId) => {
+      setOutputs((currentOutputs) =>
+        currentOutputs.map((output) =>
+          output.blockId === blockId
+            ? {
+                ...output,
+                label:
+                  "Run requested. Execution is intentionally out of scope for this task."
+              }
+            : output
+        )
+      );
+    },
+    updateText: (blockId, markdown) => {
+      setNotebook((currentNotebook) => ({
+        ...currentNotebook,
+        blocks: updateTextBlockMarkdown(currentNotebook.blocks, blockId, markdown)
+      }));
+    },
+    updateCode: (blockId, source) => {
+      setNotebook((currentNotebook) => ({
+        ...currentNotebook,
+        blocks: updateCodeBlockSource(currentNotebook.blocks, blockId, source)
+      }));
+    }
+  };
+
+  const contentBlockIds = notebookContentBlockIds(notebook);
+  const boundOutputIds = outputBlockIds(outputs);
+  const lastBlockId = contentBlockIds[contentBlockIds.length - 1] ?? "";
 
   return (
     <main className="notebook-editor">
@@ -100,6 +278,18 @@ export function NotebookEditorPage() {
           Notebooks
         </a>
         <div className="topbar-actions" aria-label="Notebook actions">
+          <button
+            type="button"
+            onClick={() => actions.addBlockAfter(lastBlockId, "text")}
+          >
+            Add text block
+          </button>
+          <button
+            type="button"
+            onClick={() => actions.addBlockAfter(lastBlockId, "code")}
+          >
+            Add code block
+          </button>
           <button type="button" disabled>
             Sync placeholder
           </button>
@@ -114,16 +304,23 @@ export function NotebookEditorPage() {
 
       <section className="notebook-meta" aria-labelledby="notebook-title">
         <p className="eyebrow">Notebook editor template</p>
-        <h1 id="notebook-title">{sampleNotebook.title}</h1>
+        <h1 id="notebook-title">{notebook.title}</h1>
         <p>
           Ordered blocks: {contentBlockIds.length}. Output bindings:{" "}
-          {boundOutputIds.length}. Revision {sampleNotebook.revision}.
+          {boundOutputIds.length}. Revision {notebook.revision}.
         </p>
       </section>
 
       <section className="block-list" aria-label="Notebook blocks">
-        {sampleNotebook.blocks.map((block) => (
-          <NotebookBlockView key={block.id} block={block} />
+        {notebook.blocks.map((block, index) => (
+          <NotebookBlockView
+            key={block.id}
+            block={block}
+            index={index}
+            blockCount={notebook.blocks.length}
+            output={getOutputForBlock(outputs, block.id)}
+            actions={actions}
+          />
         ))}
       </section>
     </main>
