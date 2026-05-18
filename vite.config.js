@@ -1,4 +1,5 @@
-import { defineConfig, loadEnv } from "vite";
+import { defineConfig } from "vitest/config";
+import { loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 export default defineConfig(function (_a) {
     var mode = _a.mode;
@@ -10,6 +11,10 @@ export default defineConfig(function (_a) {
             host: env.VITE_HOST || "0.0.0.0",
             port: port,
             strictPort: true
+        },
+        test: {
+            environment: "jsdom",
+            setupFiles: "./src/test/setupTests.ts"
         }
     };
 });
