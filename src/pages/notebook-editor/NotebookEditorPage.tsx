@@ -45,6 +45,7 @@ function BlockActionCluster({
       <div className="add-actions" aria-label={`Add block after ${block.id}`}>
         <button
           type="button"
+          className="editor-button editor-button-secondary"
           aria-label={`Add text block after ${block.id}`}
           onClick={() => actions.addBlockAfter(block.id, "text")}
         >
@@ -52,6 +53,7 @@ function BlockActionCluster({
         </button>
         <button
           type="button"
+          className="editor-button editor-button-secondary"
           aria-label={`Add code block after ${block.id}`}
           onClick={() => actions.addBlockAfter(block.id, "code")}
         >
@@ -60,6 +62,7 @@ function BlockActionCluster({
       </div>
       <button
         type="button"
+        className="editor-button editor-button-secondary"
         aria-label={`Move ${block.id} up`}
         disabled={isFirst}
         onClick={() => actions.moveBlockById(block.id, "up")}
@@ -68,6 +71,7 @@ function BlockActionCluster({
       </button>
       <button
         type="button"
+        className="editor-button editor-button-secondary"
         aria-label={`Move ${block.id} down`}
         disabled={isLast}
         onClick={() => actions.moveBlockById(block.id, "down")}
@@ -76,6 +80,7 @@ function BlockActionCluster({
       </button>
       <button
         type="button"
+        className="editor-button editor-button-secondary"
         aria-label={`Delete ${block.id}`}
         onClick={() => actions.deleteBlockById(block.id)}
       >
@@ -84,7 +89,7 @@ function BlockActionCluster({
       {block.type === "code" ? (
         <button
           type="button"
-          className="run-action"
+          className="editor-button run-action"
           aria-label={`Run ${block.id}`}
           onClick={() => actions.runBlock(block.id)}
         >
@@ -136,7 +141,7 @@ function CodeBlockView({
         </label>
         <button
           type="button"
-          className="run-inline"
+          className="editor-button run-inline"
           aria-label={`Run block ${block.id}`}
           onClick={() => runBlock(block.id)}
         >
@@ -272,31 +277,51 @@ export function NotebookEditorPage() {
   const lastBlockId = contentBlockIds[contentBlockIds.length - 1] ?? "";
 
   return (
-    <main className="notebook-editor">
+    <div className="notebook-editor">
       <header className="editor-topbar">
-        <a href="/notebooks" aria-label="Back to notebooks">
-          Notebooks
-        </a>
+        <div>
+          <a href="/notebooks" aria-label="Back to notebooks">
+            Notebooks
+          </a>
+          <span className="topbar-separator" aria-hidden="true">
+            /
+          </span>
+          <span className="topbar-title">{notebook.title}</span>
+        </div>
         <div className="topbar-actions" aria-label="Notebook actions">
           <button
             type="button"
+            className="editor-button editor-button-secondary"
             onClick={() => actions.addBlockAfter(lastBlockId, "text")}
           >
             Add text block
           </button>
           <button
             type="button"
+            className="editor-button editor-button-secondary"
             onClick={() => actions.addBlockAfter(lastBlockId, "code")}
           >
             Add code block
           </button>
-          <button type="button" disabled>
+          <button
+            type="button"
+            className="editor-button editor-button-secondary"
+            disabled
+          >
             Sync placeholder
           </button>
-          <button type="button" disabled>
+          <button
+            type="button"
+            className="editor-button editor-button-secondary"
+            disabled
+          >
             Run all placeholder
           </button>
-          <button type="button" disabled>
+          <button
+            type="button"
+            className="editor-button editor-button-secondary"
+            disabled
+          >
             Export placeholder
           </button>
         </div>
@@ -323,6 +348,6 @@ export function NotebookEditorPage() {
           />
         ))}
       </section>
-    </main>
+    </div>
   );
 }
