@@ -1,8 +1,8 @@
-import "./App.css";
-import { NotebookEditorPage } from "./pages/notebook-editor/NotebookEditorPage";
+import { createBrowserRouter, RouterProvider } from "react-router-dom";
+import { routes } from "./app/routes";
 
-function App() {
-  return <NotebookEditorPage />;
+const router = createBrowserRouter(routes);
+
+export default function App() {
+  return <RouterProvider router={router} />;
 }
-
-export default App;

@@ -27,6 +27,10 @@ test-results/
 # Vite cache
 .vite/
 
+# tsc-emitted artifacts of vite.config.ts (source is vite.config.ts only)
+vite.config.js
+vite.config.d.ts
+
 # OS and editor files
 .DS_Store
 .idea/

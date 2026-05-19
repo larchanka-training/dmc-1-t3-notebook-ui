@@ -1,21 +1,26 @@
-import { defineConfig } from "vitest/config";
-import { loadEnv } from "vite";
+/// <reference types="vitest" />
 import react from "@vitejs/plugin-react";
+import { defineConfig, loadEnv } from "vite";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, ".", "");
-  const port = Number(env.VITE_PORT || 5173);
+  const host = env.VITE_HOST?.trim() || "0.0.0.0";
+  const port = Number(env.VITE_PORT?.trim() || 5173);
 
   return {
     plugins: [react()],
     server: {
-      host: env.VITE_HOST || "0.0.0.0",
+      host,
       port,
-      strictPort: true
+      strictPort: true,
+      allowedHosts: ["notebook.com"]
     },
     test: {
       environment: "jsdom",
-      setupFiles: "./src/test/setupTests.ts"
+      globals: false,
+      setupFiles: ["./src/test/setup.ts"],
+      css: false,
+      include: ["src/**/*.test.{ts,tsx}"]
     }
   };
 });
