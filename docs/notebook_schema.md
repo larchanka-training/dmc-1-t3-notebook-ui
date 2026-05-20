@@ -202,6 +202,8 @@ Purpose:
 - distinguish local editing status from durable sync state
 - support ordering and recovery UX
 
+`hasUnsyncedChanges` is persisted in IndexedDB per [ADR-007](./adr/ADR-007-unsynced-changes-persistence.md).
+
 ## Sync Metadata Schema
 
 Recommended sync metadata:

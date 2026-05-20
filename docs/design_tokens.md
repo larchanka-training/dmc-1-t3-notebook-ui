@@ -4,7 +4,7 @@
 
 This document establishes the initial design token direction for the notebook UI.
 
-It is intentionally lightweight and should guide implementation without introducing a new UI library.
+Tokens are implemented through **Tailwind CSS** and the **shadcn/ui** theme (`src/shared/ui/`, CSS variables in global styles). shadcn primitives are customized here—not replaced by a second component framework. See `libs.md` for install commands (`pnpm dlx shadcn@latest …`).
 
 ## Typography
 
@@ -90,6 +90,36 @@ Guidance:
 - block action cluster should feel local to the block
 - code and text blocks should share a family resemblance but remain visually distinguishable
 - outputs should feel attached to the originating code block
+
+## Tailwind Mapping
+
+Product tokens in `:root` (`app/styles/index.css`) are exposed to components through `tailwind.config.js`:
+
+| CSS variable             | Tailwind utility examples                      |
+| ------------------------ | ---------------------------------------------- |
+| `--color-bg-app`         | `bg-app`, `bg-surface-muted`                   |
+| `--color-bg-surface`     | `bg-surface`                                   |
+| `--color-bg-editor`      | `bg-editor`                                    |
+| `--color-border-default` | `border-border-token`, `divide-border-token`   |
+| `--color-border-strong`  | `border-border-strong`                         |
+| `--color-text-primary`   | `text-ink`                                     |
+| `--color-text-secondary` | `text-ink-secondary`                           |
+| `--color-text-muted`     | `text-ink-muted`                               |
+| `--color-accent-primary` | `text-accent-primary`, `border-accent-primary` |
+| `--color-accent-danger`  | `text-accent-danger`                           |
+| `--space-*`              | `p-token-16`, `gap-token-8`, and similar       |
+
+Prefer these utilities in `pages/*/ui/`, `features/*/ui/`, `entities/*/ui/`, and `app/ui/` instead of hard-coded hex colors or ad hoc `var(--color-*)` in JSX.
+
+Block chrome tokens (`--block-radius`, `--block-padding`, `--block-gap`, and related) remain available as CSS variables for layout that spans multiple elements.
+
+## shadcn Integration
+
+- Map token groups above to Tailwind theme extensions and shadcn CSS variables (`--background`, `--foreground`, `--primary`, `--destructive`, and related tokens).
+- shadcn components in this repo use the **`new-york`** style and **Radix UI** packages (for example `@radix-ui/react-slot` on `Button`).
+- Add shadcn components only through `pnpm dlx shadcn@latest add <component>`; keep files under `shared/ui/`.
+- Prefer composing shadcn primitives in feature or entity `ui/` segments for notebook-specific chrome (block toolbar, sync banner, login form).
+- Do not import shadcn internals from deep paths outside `shared/ui/` public API.
 
 ## Accessibility Rules
 
