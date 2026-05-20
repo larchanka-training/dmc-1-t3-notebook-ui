@@ -2,7 +2,7 @@ FROM node:22-alpine
 
 WORKDIR /home/app
 
-RUN apk add --no-cache bash
+RUN apk add --no-cache bash procps-ng
 
 COPY package*.json ./
 RUN npm install --include=optional
