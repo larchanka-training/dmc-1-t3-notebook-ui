@@ -19,6 +19,15 @@ try {
 } catch {
   signalIncompatible = true;
 }
+// CodeMirror measures text positions via Range.getClientRects in jsdom.
+const RangeCtor = globalThis.Range;
+if (RangeCtor && !RangeCtor.prototype.getClientRects) {
+  RangeCtor.prototype.getClientRects = function getClientRects() {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- jsdom stub for CodeMirror layout
+    return [] as any;
+  };
+}
+
 if (signalIncompatible) {
   class PatchedRequest extends NativeRequest {
     constructor(input: RequestCtorArgs[0], init?: RequestCtorArgs[1]) {

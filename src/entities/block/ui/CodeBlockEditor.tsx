@@ -1,3 +1,5 @@
+import CodeMirror from "@uiw/react-codemirror";
+import { javascript } from "@codemirror/lang-javascript";
 import type { CodeBlock } from "../model/types";
 import { Button } from "@/shared/ui";
 
@@ -34,13 +36,19 @@ export function CodeBlockEditor({
           Run block
         </Button>
       </div>
-      <textarea
+      <CodeMirror
         id={`${block.id}-source`}
-        aria-label={`JavaScript source for ${block.id}`}
         value={block.content.source}
-        spellCheck={false}
-        onChange={(event) => onChange(event.target.value)}
-        className="min-h-48 w-full resize-y overflow-x-auto border-0 bg-gray-900 p-4 font-mono text-sm leading-relaxed text-gray-200 outline-none"
+        height="12rem"
+        extensions={[javascript()]}
+        aria-label={`JavaScript source for ${block.id}`}
+        basicSetup={{
+          lineNumbers: true,
+          foldGutter: false,
+          highlightActiveLine: true,
+        }}
+        onChange={(value) => onChange(value)}
+        className="overflow-x-auto [&_.cm-editor]:bg-gray-900 [&_.cm-editor]:text-sm [&_.cm-scroller]:font-mono [&_.cm-content]:py-4"
       />
     </>
   );

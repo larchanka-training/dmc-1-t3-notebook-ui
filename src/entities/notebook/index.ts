@@ -4,6 +4,7 @@ export {
   createTextBlock,
   deleteBlock,
   hasOutputStoredAsDurableContent,
+  insertBlockBefore,
   insertBlockAfter,
   moveBlock,
   notebookContentBlockIds,

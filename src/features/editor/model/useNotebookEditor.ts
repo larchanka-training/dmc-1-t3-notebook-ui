@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   createCodeBlock,
   createTextBlock,
   deleteBlock,
   insertBlockAfter,
+  insertBlockBefore,
   moveBlock,
   notebookContentBlockIds,
   updateCodeBlockSource,
@@ -20,10 +21,31 @@ import {
 import type { OutputPlaceholder } from "@/entities/output";
 import type { BlockActions } from "./types";
 
+function notebookForRoute(notebookId: string | null) {
+  if (!notebookId) {
+    return sampleNotebook;
+  }
+
+  return {
+    ...sampleNotebook,
+    id: notebookId,
+    title:
+      notebookId === sampleNotebook.id
+        ? sampleNotebook.title
+        : `Notebook ${notebookId}`,
+  };
+}
+
 export function useNotebookEditor(notebookId: string | null) {
-  const [notebook, setNotebook] = useState(sampleNotebook);
+  const [notebook, setNotebook] = useState(() => notebookForRoute(notebookId));
   const [outputs, setOutputs] = useState(sampleOutputPlaceholders);
   const [nextBlockNumber, setNextBlockNumber] = useState(1);
+
+  useEffect(() => {
+    setNotebook(notebookForRoute(notebookId));
+    setOutputs(sampleOutputPlaceholders);
+    setNextBlockNumber(1);
+  }, [notebookId]);
 
   const createBlockId = (type: NotebookBlock["type"]) => {
     const blockId = `blk_new_${type}_${nextBlockNumber}`;
@@ -31,24 +53,32 @@ export function useNotebookEditor(notebookId: string | null) {
     return blockId;
   };
 
+  const insertBlock = (
+    blockId: string,
+    type: NotebookBlock["type"],
+    position: "before" | "after",
+  ) => {
+    const newBlockId = createBlockId(type);
+    const newBlock =
+      type === "text" ? createTextBlock(newBlockId) : createCodeBlock(newBlockId);
+    const insert = position === "before" ? insertBlockBefore : insertBlockAfter;
+
+    setNotebook((currentNotebook) => ({
+      ...currentNotebook,
+      blocks: insert(currentNotebook.blocks, blockId, newBlock),
+    }));
+
+    if (newBlock.type === "code") {
+      setOutputs((currentOutputs) => [
+        ...currentOutputs,
+        createOutputPlaceholder(newBlock.id),
+      ]);
+    }
+  };
+
   const actions: BlockActions = {
-    addBlockAfter: (blockId, type) => {
-      const newBlockId = createBlockId(type);
-      const newBlock =
-        type === "text" ? createTextBlock(newBlockId) : createCodeBlock(newBlockId);
-
-      setNotebook((currentNotebook) => ({
-        ...currentNotebook,
-        blocks: insertBlockAfter(currentNotebook.blocks, blockId, newBlock),
-      }));
-
-      if (newBlock.type === "code") {
-        setOutputs((currentOutputs) => [
-          ...currentOutputs,
-          createOutputPlaceholder(newBlock.id),
-        ]);
-      }
-    },
+    addBlockBefore: (blockId, type) => insertBlock(blockId, type, "before"),
+    addBlockAfter: (blockId, type) => insertBlock(blockId, type, "after"),
     deleteBlockById: (blockId) => {
       setNotebook((currentNotebook) => ({
         ...currentNotebook,

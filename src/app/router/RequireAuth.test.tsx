@@ -29,5 +29,32 @@ describe("RequireAuth", () => {
 
     render(<RouterProvider router={router} />);
     expect(await screen.findByText("Login")).toBeInTheDocument();
+    expect(screen.queryByText("Protected")).not.toBeInTheDocument();
+  });
+
+  it("renders the child route when authenticated", () => {
+    useAppStore.setState({
+      auth: {
+        isAuthenticated: true,
+        userEmail: "user@example.com",
+        status: "idle",
+        error: null,
+      },
+    });
+
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/",
+          element: <RequireAuth />,
+          children: [{ index: true, element: <div>Protected</div> }],
+        },
+        { path: "/login", element: <div>Login</div> },
+      ],
+      { initialEntries: ["/"] },
+    );
+
+    render(<RouterProvider router={router} />);
+    expect(screen.getByText("Protected")).toBeInTheDocument();
   });
 });

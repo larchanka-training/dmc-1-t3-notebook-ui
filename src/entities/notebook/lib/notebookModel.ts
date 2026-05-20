@@ -8,6 +8,20 @@ export function hasOutputStoredAsDurableContent(notebook: Notebook): boolean {
   return notebook.blocks.some((block) => "output" in block);
 }
 
+export function insertBlockBefore(
+  blocks: NotebookBlock[],
+  targetBlockId: string,
+  blockToInsert: NotebookBlock,
+): NotebookBlock[] {
+  const targetIndex = blocks.findIndex((block) => block.id === targetBlockId);
+
+  if (targetIndex === -1) {
+    return [blockToInsert, ...blocks];
+  }
+
+  return [...blocks.slice(0, targetIndex), blockToInsert, ...blocks.slice(targetIndex)];
+}
+
 export function insertBlockAfter(
   blocks: NotebookBlock[],
   targetBlockId: string,

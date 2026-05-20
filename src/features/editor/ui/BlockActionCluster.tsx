@@ -26,26 +26,48 @@ export function BlockActionCluster({
       className="sticky top-[4.75rem] flex flex-wrap justify-end gap-1 opacity-72 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 max-md:static max-md:order-2 max-md:w-full max-md:justify-start"
       aria-label={`Actions for ${block.id}`}
     >
-      <div className="contents" aria-label={`Add block after ${block.id}`}>
+      <div className="contents" aria-label={`Add block above ${block.id}`}>
         <Button
           type="button"
           variant="outline"
           size="xs"
           className={cn(editorSecondaryButtonClass, blockActionButtonClass)}
-          aria-label={`Add text block after ${block.id}`}
-          onClick={() => actions.addBlockAfter(block.id, "text")}
+          aria-label={`Add text block above ${block.id}`}
+          onClick={() => actions.addBlockBefore(block.id, "text")}
         >
-          + Text
+          + Text ↑
         </Button>
         <Button
           type="button"
           variant="outline"
           size="xs"
           className={cn(editorSecondaryButtonClass, blockActionButtonClass)}
-          aria-label={`Add code block after ${block.id}`}
+          aria-label={`Add code block above ${block.id}`}
+          onClick={() => actions.addBlockBefore(block.id, "code")}
+        >
+          + Code ↑
+        </Button>
+      </div>
+      <div className="contents" aria-label={`Add block below ${block.id}`}>
+        <Button
+          type="button"
+          variant="outline"
+          size="xs"
+          className={cn(editorSecondaryButtonClass, blockActionButtonClass)}
+          aria-label={`Add text block below ${block.id}`}
+          onClick={() => actions.addBlockAfter(block.id, "text")}
+        >
+          + Text ↓
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="xs"
+          className={cn(editorSecondaryButtonClass, blockActionButtonClass)}
+          aria-label={`Add code block below ${block.id}`}
           onClick={() => actions.addBlockAfter(block.id, "code")}
         >
-          + Code
+          + Code ↓
         </Button>
       </div>
       <Button

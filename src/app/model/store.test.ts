@@ -13,9 +13,28 @@ describe("useAppStore", () => {
     expect(s.appUi).toBeDefined();
   });
 
-  it("AuthSlice actions are wired (logout resets auth)", () => {
-    useAppStore.getState().setAuthenticated(true, "x@y.z");
+  it("logout resets auth and notebook-related slices", () => {
+    useAppStore.setState({
+      auth: {
+        isAuthenticated: true,
+        userEmail: "x@y.z",
+        status: "idle",
+        error: null,
+      },
+      notebookList: {
+        items: [{ id: "nb_1", title: "Draft", updatedAt: "2026-05-18T10:00:00.000Z" }],
+        status: "idle",
+        error: null,
+      },
+      activeNotebook: { notebookId: "nb_1", blocks: [], dirty: true },
+    });
+
     useAppStore.getState().logout();
-    expect(useAppStore.getState().auth.isAuthenticated).toBe(false);
+
+    const state = useAppStore.getState();
+    expect(state.auth.isAuthenticated).toBe(false);
+    expect(state.notebookList.items).toHaveLength(0);
+    expect(state.activeNotebook.notebookId).toBeNull();
+    expect(state.activeNotebook.dirty).toBe(false);
   });
 });

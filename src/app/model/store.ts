@@ -15,15 +15,48 @@ const createRootState: StateCreator<
   [["zustand/persist", unknown]],
   [],
   AppState
-> = (...args) => ({
-  ...createAuthSlice(...args),
-  ...createNotebookListSlice(...args),
-  ...createActiveNotebookSlice(...args),
-  ...createBlockUiSlice(...args),
-  ...createExecutionSlice(...args),
-  ...createSyncSlice(...args),
-  ...createAppUiSlice(...args),
-});
+> = (...args) => {
+  const [set] = args;
+  const slices = {
+    ...createAuthSlice(...args),
+    ...createNotebookListSlice(...args),
+    ...createActiveNotebookSlice(...args),
+    ...createBlockUiSlice(...args),
+    ...createExecutionSlice(...args),
+    ...createSyncSlice(...args),
+    ...createAppUiSlice(...args),
+  };
+
+  return {
+    ...slices,
+    logout: () => {
+      set({
+        auth: {
+          isAuthenticated: false,
+          userEmail: null,
+          status: "idle",
+          error: null,
+        },
+        notebookList: { items: [], status: "idle", error: null },
+        activeNotebook: { notebookId: null, blocks: [], dirty: false },
+        blockUi: {
+          selectedBlockId: null,
+          focusedBlockId: null,
+          toolbarOpenForBlockId: null,
+          aiPromptOpenForBlockId: null,
+        },
+        execution: {
+          status: "idle",
+          targetBlockId: null,
+          runningBlockIds: [],
+          outputs: {},
+          error: null,
+        },
+        sync: { lastSyncedAt: null, status: "idle", error: null },
+      });
+    },
+  };
+};
 
 export const useAppStore = create<AppState>()(
   persist(createRootState, authPersistOptions),
