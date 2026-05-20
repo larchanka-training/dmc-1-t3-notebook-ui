@@ -7,5 +7,5 @@ export default {
   tabWidth: 2,
   bracketSpacing: true,
   arrowParens: "always",
-  endOfLine: "lf"
+  endOfLine: "lf",
 };
