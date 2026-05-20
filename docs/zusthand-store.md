@@ -157,7 +157,7 @@ Contains:
 Persist to IndexedDB:
 
 - active notebook working copy
-- local notebook metadata
+- local notebook metadata (including `hasUnsyncedChanges`)
 - sync metadata
 
 Do not persist by default:
@@ -172,7 +172,6 @@ Do not persist by default:
 
 Useful derived selectors include:
 
-- `hasUnsyncedChanges`
 - `selectedBlock`
 - `selectedCodeBlock`
 - `canRunSelectedBlock`
@@ -182,3 +181,5 @@ Useful derived selectors include:
 - `isAuthenticated`
 
 Derived values should be computed from store state rather than stored redundantly when practical.
+
+`hasUnsyncedChanges` is an exception: persist it in local notebook metadata (IndexedDB) per `notebook_schema.md` and [ADR-007](./adr/ADR-007-unsynced-changes-persistence.md), and expose it to the UI from that persisted field.

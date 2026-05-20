@@ -58,13 +58,13 @@ The notebook list page uses:
 
 The active implementation uses the Tailwind token layer from `tailwind.config.js`:
 
-| Token | Value | Usage |
-|---|---:|---|
-| `surface` | `#ffffff` | cards, header, controls |
-| `surface-muted` | `#f7f7f5` | page background |
-| `ink` | `#1f1f1f` | primary text |
-| `ink-muted` | `#6b6b6b` | secondary text |
-| `accent` | `#2563eb` | primary actions and focus accents |
+| Token           |     Value | Usage                             |
+| --------------- | --------: | --------------------------------- |
+| `surface`       | `#ffffff` | cards, header, controls           |
+| `surface-muted` | `#f7f7f5` | page background                   |
+| `ink`           | `#1f1f1f` | primary text                      |
+| `ink-muted`     | `#6b6b6b` | secondary text                    |
+| `accent`        | `#2563eb` | primary actions and focus accents |
 
 Global CSS also defines semantic CSS variables. For editor-specific CSS, prefer the project-level semantic variables only when they are aligned to the active Tailwind scheme. Do not introduce a separate warm or decorative palette for one page.
 
@@ -154,4 +154,3 @@ Avoid:
 - card-within-card decoration
 - global CSS button overrides
 - adding a new UI library or frontend dependency
-

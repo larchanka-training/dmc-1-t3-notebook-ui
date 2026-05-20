@@ -40,10 +40,12 @@ Persistent state should be written to IndexedDB when relevant:
 - notebook working copy
 - notebook title
 - ordered blocks
-- local notebook metadata
+- local notebook metadata (including `hasUnsyncedChanges`)
 - sync metadata
 
 Persistent state should not depend on runtime outputs.
+
+`hasUnsyncedChanges` is stored in local notebook metadata in IndexedDB and may be mirrored in memory for fast UI updates. It is not a pure derived-only flag. See [ADR-007](./adr/ADR-007-unsynced-changes-persistence.md).
 
 ## Ephemeral State
 
@@ -61,7 +63,6 @@ Ephemeral state should remain in memory only:
 
 Derived state is computed from base state and should not usually be persisted:
 
-- whether the notebook has unsynced changes
 - whether a selected block is executable
 - whether sync is currently allowed
 - whether a notebook list is empty

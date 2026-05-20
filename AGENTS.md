@@ -45,6 +45,11 @@ When sources conflict, use this precedence:
 5. Local UI operational and testing documents when present
 6. Existing UI code and tests
 
+## Tooling
+
+- Use **`pnpm`** only in this repository for installs, dependency changes, and script execution (`pnpm install`, `pnpm add`, `pnpm run test`, etc.). Do not use `npm` or `yarn`.
+- Use **`shadcn/ui`** for shared UI primitives per `docs/libs.md` and `docs/design_tokens.md`. Add components with `pnpm dlx shadcn@latest add <component>` into `src/shared/ui/`.
+
 ## Mandatory UI Rules
 
 - Follow the documented routing model.
@@ -56,8 +61,8 @@ When sources conflict, use this precedence:
 - Preserve the existing project design language and component conventions.
 - Handle loading, empty, error, success, and disabled states for user-facing flows.
 - Preserve accessibility and keyboard usability.
-- Do not introduce a new design system or UI library without approval.
-- Do not add frontend dependencies without approval.
+- Use shadcn/ui for primitives; do not add MUI, Chakra UI, Ant Design, or another full UI framework without approval.
+- Do not add frontend dependencies without approval (install with `pnpm add` after approval).
 - Add or update frontend tests for behavior changes.
 - Run relevant lint, type, test, and build checks before claiming completion.
 

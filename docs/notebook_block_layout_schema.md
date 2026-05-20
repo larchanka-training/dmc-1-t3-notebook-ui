@@ -8,10 +8,10 @@ This document describes how notebook blocks are defined, ordered, placed on the 
 
 Version 1 supports two notebook block types:
 
-| Type | Purpose | Editable content |
-|---|---|---|
-| `text` | Markdown note content | `content.markdown` |
-| `code` | Executable JavaScript content | `content.source` |
+| Type   | Purpose                       | Editable content   |
+| ------ | ----------------------------- | ------------------ |
+| `text` | Markdown note content         | `content.markdown` |
+| `code` | Executable JavaScript content | `content.source`   |
 
 Outputs are not notebook blocks. Outputs are execution artifacts bound to code blocks by `blockId`.
 
@@ -95,16 +95,20 @@ On wide screens, the action cluster sits beside the block content. On narrow scr
 
 The block action cluster is local to a single block.
 
+Insertion actions follow [ADR-008](./adr/ADR-008-block-insertion-above-below.md): new blocks are added above or below the current block, not only after it.
+
 It contains:
 
-| Action | Applies to |
-|---|---|
-| Add text block after current block | `text`, `code` |
-| Add code block after current block | `text`, `code` |
-| Move block up | `text`, `code` |
-| Move block down | `text`, `code` |
-| Delete block | `text`, `code` |
-| Run block | `code` only |
+| Action                             | Applies to     |
+| ---------------------------------- | -------------- |
+| Add text block above current block | `text`, `code` |
+| Add text block below current block | `text`, `code` |
+| Add code block above current block | `text`, `code` |
+| Add code block below current block | `text`, `code` |
+| Move block up                      | `text`, `code` |
+| Move block down                    | `text`, `code` |
+| Delete block                       | `text`, `code` |
+| Run block                          | `code` only    |
 
 All actions must remain keyboard reachable.
 
@@ -121,7 +125,7 @@ Text block content area
 The editable value is:
 
 ```ts
-block.content.markdown
+block.content.markdown;
 ```
 
 Text blocks do not have output areas.
@@ -142,7 +146,7 @@ Code block content area
 The editable value is:
 
 ```ts
-block.content.source
+block.content.source;
 ```
 
 The output area must remain visually attached to the code block that produced it.
@@ -180,4 +184,3 @@ This keeps durable notebook content separate from execution artifacts while pres
 - Do not introduce new block types without updating the architecture and schema documents.
 - Preserve keyboard access for block actions.
 - Preserve clear empty, disabled, running, success, and error states as those flows are implemented.
-
