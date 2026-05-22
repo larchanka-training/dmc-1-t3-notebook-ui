@@ -1,39 +1,56 @@
-import { describe, it, expect } from "vitest";
-import { AUTH_STORAGE_KEY } from "./persist";
+import { describe, expect, it } from "vitest";
+import { testUser } from "@test/authFixtures";
 import { useAppStore } from "./store";
+import { AUTH_STORAGE_KEY } from "./persist";
 
-describe("auth persistence", () => {
-  it("writes only the auth slice to localStorage on sign-in", () => {
-    useAppStore.getState().setAuthenticated(true, "user@example.com");
+describe("auth persist", () => {
+  it("persists user summary to localStorage", () => {
+    useAppStore.getState().setAuthUser(testUser("user@example.com"));
     const raw = globalThis.localStorage.getItem(AUTH_STORAGE_KEY);
-    expect(raw).not.toBeNull();
-    const parsed = JSON.parse(raw as string);
-    expect(parsed.state.auth.isAuthenticated).toBe(true);
-    expect(parsed.state.auth.userEmail).toBe("user@example.com");
-    expect(parsed.state.notebookList).toBeUndefined();
-    expect(parsed.state.activeNotebook).toBeUndefined();
+    expect(raw).toBeTruthy();
+    const parsed = JSON.parse(raw!) as {
+      state: { auth: { user: { email: string } } };
+    };
+    expect(parsed.state.auth.user.email).toBe("user@example.com");
   });
 
-  it("rehydrates isAuthenticated from localStorage", () => {
+  it("rehydrates user summary from localStorage", () => {
+    useAppStore.getState().logout();
     globalThis.localStorage.setItem(
       AUTH_STORAGE_KEY,
       JSON.stringify({
-        state: { auth: { isAuthenticated: true, userEmail: "back@example.com" } },
-        version: 0,
+        state: {
+          auth: {
+            isAuthenticated: true,
+            user: testUser("back@example.com"),
+            authenticatedAt: "2026-05-14T10:00:00Z",
+          },
+        },
       }),
     );
     useAppStore.persist.rehydrate();
-    expect(useAppStore.getState().auth.isAuthenticated).toBe(true);
-    expect(useAppStore.getState().auth.userEmail).toBe("back@example.com");
-    expect(useAppStore.getState().auth.status).toBe("idle");
+    expect(useAppStore.getState().auth.user?.email).toBe("back@example.com");
+    expect(useAppStore.getState().auth.authenticatedAt).toBe("2026-05-14T10:00:00Z");
+  });
+
+  it("migrates legacy userEmail field to user on rehydrate", () => {
+    useAppStore.getState().logout();
+    globalThis.localStorage.setItem(
+      AUTH_STORAGE_KEY,
+      JSON.stringify({
+        state: {
+          auth: { isAuthenticated: true, userEmail: "legacy@example.com" },
+        },
+      }),
+    );
+    useAppStore.persist.rehydrate();
+    expect(useAppStore.getState().auth.user?.email).toBe("legacy@example.com");
   });
 
   it("clears the authenticated flag on logout", () => {
-    useAppStore.getState().setAuthenticated(true, "user@example.com");
+    useAppStore.getState().setAuthUser(testUser());
     useAppStore.getState().logout();
-    const parsed = JSON.parse(
-      globalThis.localStorage.getItem(AUTH_STORAGE_KEY) as string,
-    );
-    expect(parsed.state.auth.isAuthenticated).toBe(false);
+    expect(useAppStore.getState().auth.isAuthenticated).toBe(false);
+    expect(useAppStore.getState().auth.user).toBeNull();
   });
 });

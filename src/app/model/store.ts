@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { StateCreator } from "zustand";
-import { createAuthSlice } from "@/features/auth";
+import { createAuthSlice } from "@/features/auth/@x/app";
 import { createNotebookListSlice } from "@/features/notebooks";
 import { createActiveNotebookSlice, createBlockUiSlice } from "@/features/editor";
 import { createExecutionSlice } from "@/features/execution";
@@ -33,7 +33,8 @@ const createRootState: StateCreator<
       set({
         auth: {
           isAuthenticated: false,
-          userEmail: null,
+          user: null,
+          authenticatedAt: null,
           status: "idle",
           error: null,
         },

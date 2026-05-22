@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { create, type StateCreator } from "zustand";
+import { testUser } from "@test/authFixtures";
 import { createAuthSlice } from "./authSlice";
 import type { AuthSlice } from "./types";
 
@@ -13,19 +14,21 @@ describe("createAuthSlice", () => {
     store = makeStore();
   });
 
-  it("initial state is unauthenticated, idle, no error", () => {
+  it("initial state is unauthenticated, idle, no user", () => {
     const s = store.getState();
     expect(s.auth.isAuthenticated).toBe(false);
-    expect(s.auth.userEmail).toBeNull();
+    expect(s.auth.user).toBeNull();
+    expect(s.auth.authenticatedAt).toBeNull();
     expect(s.auth.status).toBe("idle");
     expect(s.auth.error).toBeNull();
   });
 
-  it("setAuthenticated(true, email) flips auth state", () => {
-    store.getState().setAuthenticated(true, "user@example.com");
+  it("setAuthUser stores full user summary and authenticatedAt", () => {
+    store.getState().setAuthUser(testUser(), "2026-05-14T10:00:00Z");
     const s = store.getState();
     expect(s.auth.isAuthenticated).toBe(true);
-    expect(s.auth.userEmail).toBe("user@example.com");
+    expect(s.auth.user).toEqual(testUser());
+    expect(s.auth.authenticatedAt).toBe("2026-05-14T10:00:00Z");
   });
 
   it("setAuthStatus updates status and error", () => {
@@ -42,11 +45,12 @@ describe("createAuthSlice", () => {
   });
 
   it("logout resets to initial state", () => {
-    store.getState().setAuthenticated(true, "user@example.com");
+    store.getState().setAuthUser(testUser());
     store.getState().logout();
     const s = store.getState();
     expect(s.auth.isAuthenticated).toBe(false);
-    expect(s.auth.userEmail).toBeNull();
+    expect(s.auth.user).toBeNull();
+    expect(s.auth.authenticatedAt).toBeNull();
     expect(s.auth.status).toBe("idle");
   });
 });

@@ -1,66 +1,107 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import type { ChangeEvent, FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAppStore } from "@/app/model";
-import { MOCK_OTP } from "./constants";
+import { getAuthGoogleStartUrl } from "@/shared/api";
+import { formatOtpExpiry } from "../utils/formatOtpExpiry";
+import { useRequestOtpMutation } from "./useRequestOtpMutation";
+import { useVerifyOtpMutation } from "./useVerifyOtpMutation";
 
 export function useLoginForm() {
-  const setAuthenticated = useAppStore((s) => s.setAuthenticated);
-  const navigate = useNavigate();
-
   const [step, setStep] = useState<"request" | "verify">("request");
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [challengeId, setChallengeId] = useState<string | null>(null);
+  const [devOtpHint, setDevOtpHint] = useState<string | null>(null);
+  const [otpExpiryHint, setOtpExpiryHint] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
 
-  function handleRequestOtp(event: FormEvent) {
-    event.preventDefault();
-    setError(null);
-    setStep("verify");
-  }
+  const {
+    requestOtp,
+    loading: requestLoading,
+    error: requestError,
+    reset: resetRequestOtp,
+  } = useRequestOtpMutation({
+    onSuccess: (data) => {
+      setChallengeId(data.challenge_id);
+      setDevOtpHint(data.dev_otp ?? null);
+      setOtpExpiryHint(formatOtpExpiry(data.expires_in_seconds));
+      setStep("verify");
+      setOtp("");
+      setLocalError(null);
+    },
+  });
 
-  function handleVerifyOtp(event: FormEvent) {
-    event.preventDefault();
-    if (otp.trim() === MOCK_OTP) {
-      setAuthenticated(true, email);
-      navigate("/notebooks", { replace: true });
-      return;
-    }
-    setError("Invalid code. Try again.");
-  }
+  const {
+    verifyOtp,
+    loading: verifyLoading,
+    error: verifyError,
+    reset: resetVerifyOtp,
+  } = useVerifyOtpMutation();
 
-  function handleChangeEmail() {
+  const onRequestOtp = useCallback(
+    (event: FormEvent) => {
+      event.preventDefault();
+      setLocalError(null);
+      requestOtp(email);
+    },
+    [email, requestOtp],
+  );
+
+  const onVerifyOtp = useCallback(
+    (event: FormEvent) => {
+      event.preventDefault();
+
+      if (!challengeId) {
+        setLocalError("Request a new code first.");
+        return;
+      }
+
+      setLocalError(null);
+      verifyOtp({ challengeId, otpCode: otp });
+    },
+    [challengeId, otp, verifyOtp],
+  );
+
+  const onChangeEmail = useCallback(() => {
     setStep("request");
     setOtp("");
-    setError(null);
-  }
+    setChallengeId(null);
+    setDevOtpHint(null);
+    setOtpExpiryHint(null);
+    setLocalError(null);
+    resetRequestOtp();
+    resetVerifyOtp();
+  }, [resetRequestOtp, resetVerifyOtp]);
 
-  function handleResendCode() {
-    // Mock: no real delivery yet; stay on the verify step.
-  }
+  const onResendCode = useCallback(() => {
+    setLocalError(null);
+    requestOtp(email);
+  }, [email, requestOtp]);
 
-  function handleGoogleSignIn() {
-    // intentional no-op stub (real OAuth is a later task)
-  }
+  const onGoogleSignIn = useCallback(() => {
+    globalThis.location.assign(getAuthGoogleStartUrl());
+  }, []);
 
-  function onEmailChange(event: ChangeEvent<HTMLInputElement>) {
+  const onEmailChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     setEmail(event.target.value);
-  }
+  }, []);
 
-  function onOtpChange(event: ChangeEvent<HTMLInputElement>) {
+  const onOtpChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     setOtp(event.target.value);
-  }
+  }, []);
 
   return {
     step,
     email,
     otp,
-    error,
-    onRequestOtp: handleRequestOtp,
-    onVerifyOtp: handleVerifyOtp,
-    onChangeEmail: handleChangeEmail,
-    onResendCode: handleResendCode,
-    onGoogleSignIn: handleGoogleSignIn,
+    error: localError ?? requestError ?? verifyError,
+    devOtpHint,
+    otpExpiryHint,
+    isSubmitting: requestLoading || verifyLoading,
+    onRequestOtp,
+    onVerifyOtp,
+    onChangeEmail,
+    onResendCode,
+    onGoogleSignIn,
     onEmailChange,
     onOtpChange,
   };

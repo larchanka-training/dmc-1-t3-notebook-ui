@@ -18,7 +18,8 @@
     "types": ["vitest"],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@test/*": ["./test/*"]
     }
   },
   "include": ["src", "test", "src/**/*.test.ts", "src/**/*.test.tsx"]

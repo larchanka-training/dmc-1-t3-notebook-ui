@@ -3,13 +3,15 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { useAppStore } from "@/app/model";
 import { RequireAuth } from "@/app/router/RequireAuth";
+import { testUser } from "@test/authFixtures";
 
 describe("RequireAuth", () => {
   it("redirects when not authenticated", async () => {
     useAppStore.setState({
       auth: {
         isAuthenticated: false,
-        userEmail: null,
+        user: null,
+        authenticatedAt: null,
         status: "idle",
         error: null,
       },
@@ -36,7 +38,8 @@ describe("RequireAuth", () => {
     useAppStore.setState({
       auth: {
         isAuthenticated: true,
-        userEmail: "user@example.com",
+        user: testUser(),
+        authenticatedAt: null,
         status: "idle",
         error: null,
       },

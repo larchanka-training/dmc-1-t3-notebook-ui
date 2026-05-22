@@ -1,7 +1,8 @@
 import "@testing-library/jest-dom/vitest";
-import { afterEach } from "vitest";
+import { afterAll, afterEach, beforeAll } from "vitest";
 import { cleanup } from "@testing-library/react";
 import { useAppStore } from "@/app/model";
+import { server } from "./msw/server";
 
 // jsdom's AbortSignal is not recognized by Node's undici Request (used by
 // react-router data routers). The navigation Request's signal only aborts
@@ -44,10 +45,14 @@ if (signalIncompatible) {
   globalThis.Request = PatchedRequest as unknown as typeof globalThis.Request;
 }
 
+beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+afterAll(() => server.close());
+
 // Reset the shared Zustand singleton between tests so suites stay isolated.
 const initialStoreState = useAppStore.getInitialState();
 
 afterEach(() => {
+  server.resetHandlers();
   cleanup();
   globalThis.localStorage.clear();
   useAppStore.setState(initialStoreState, true);
