@@ -11,6 +11,14 @@ describe("mapAuthError", () => {
     ).toBe("Invalid code. Try again.");
   });
 
+  it("maps invalid_response code", () => {
+    expect(
+      mapAuthError(
+        new ApiError(502, "invalid_response", "Unexpected authentication response"),
+      ),
+    ).toBe("Something went wrong. Please try again.");
+  });
+
   it("falls back to API message for unknown codes", () => {
     expect(
       mapAuthError(

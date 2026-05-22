@@ -41,6 +41,11 @@ export function LoginForm() {
                     onChange={onEmailChange}
                   />
                 </label>
+                {error && (
+                  <p role="alert" className="text-sm text-accent-danger">
+                    {error}
+                  </p>
+                )}
                 <Button
                   type="submit"
                   variant="default"

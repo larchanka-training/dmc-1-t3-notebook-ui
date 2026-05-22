@@ -1,6 +1,7 @@
 import { ApiError } from "@/shared/api";
 
 const OTP_ERROR_MESSAGES: Record<string, string> = {
+  invalid_response: "Something went wrong. Please try again.",
   otp_invalid: "Invalid code. Try again.",
   otp_expired: "This code has expired. Request a new one.",
   otp_challenge_not_found: "This code has expired. Request a new one.",

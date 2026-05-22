@@ -1,7 +1,9 @@
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
+import { server } from "@test/msw/server";
 import { useAppStore } from "@/app/model";
 import { renderWithProviders } from "@test/renderWithProviders";
 import { LoginForm } from "./LoginForm";
@@ -30,6 +32,33 @@ describe("LoginForm — request step", () => {
     expect(
       screen.getByRole("button", { name: /continue with google/i }),
     ).toBeInTheDocument();
+  });
+
+  it("shows an error when request-otp fails", async () => {
+    const user = userEvent.setup();
+    renderLoginForm();
+    await user.type(screen.getByLabelText(/email/i), "user@example.com");
+    await user.click(screen.getByRole("button", { name: /send code/i }));
+    await waitFor(() => {
+      expect(screen.getByLabelText(/one-time code/i)).toBeInTheDocument();
+    });
+
+    server.use(
+      http.post("/api/v1/auth/request-otp", () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: "otp_request_rate_limited",
+              message: "Too many OTP requests.",
+            },
+          },
+          { status: 429 },
+        ),
+      ),
+    );
+
+    await user.click(screen.getByRole("button", { name: /resend code/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/too many requests/i);
   });
 
   it("does not show the OTP input before a code is requested", () => {
@@ -65,6 +94,14 @@ describe("LoginForm — verify step", () => {
     renderLoginForm();
     await submitEmail("user@example.com");
     expect(screen.getByText(/code sent to/i)).toHaveTextContent("user@example.com");
+  });
+
+  it("does not show dev OTP hint outside development", async () => {
+    vi.stubEnv("DEV", false);
+    renderLoginForm();
+    await submitEmail("user@example.com");
+    expect(screen.queryByText(/development code/i)).not.toBeInTheDocument();
+    vi.unstubAllEnvs();
   });
 
   it("shows an error and stays unauthenticated on a wrong code", async () => {

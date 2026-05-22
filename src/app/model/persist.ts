@@ -1,5 +1,5 @@
 import { createJSONStorage } from "zustand/middleware";
-import { userSummaryFromPersisted } from "@/entities/user";
+import { initialAuthState } from "@/features/auth/@x/app";
 import type { AppState } from "./types";
 
 export const AUTH_STORAGE_KEY = "js-notebook-auth";
@@ -14,29 +14,8 @@ export const authPersistOptions = {
       authenticatedAt: state.auth.authenticatedAt,
     },
   }),
-  merge: (persisted: unknown, current: AppState) => {
-    const stored = persisted as
-      | {
-          auth?: {
-            isAuthenticated?: boolean;
-            user?: AppState["auth"]["user"];
-            userEmail?: string | null;
-            authenticatedAt?: string | null;
-          };
-        }
-      | undefined;
-
-    const user = userSummaryFromPersisted(stored?.auth);
-    const isAuthenticated = stored?.auth?.isAuthenticated ?? false;
-
-    return {
-      ...current,
-      auth: {
-        ...current.auth,
-        isAuthenticated: isAuthenticated && user !== null,
-        user: isAuthenticated ? user : null,
-        authenticatedAt: stored?.auth?.authenticatedAt ?? null,
-      },
-    };
-  },
+  merge: (_persisted: unknown, current: AppState) => ({
+    ...current,
+    auth: initialAuthState,
+  }),
 };

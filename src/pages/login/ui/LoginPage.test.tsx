@@ -4,12 +4,22 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { useAppStore } from "@/app/model";
 import { testUser } from "@test/authFixtures";
+import { setMockSessionAuthenticated } from "@test/msw/handlers/auth";
 import { renderWithProviders } from "@test/renderWithProviders";
 import { LoginPage } from "@/pages/login";
 
 describe("LoginPage", () => {
   it("redirects to /notebooks when already authenticated", () => {
-    useAppStore.getState().setAuthUser(testUser());
+    setMockSessionAuthenticated(true, "user@example.com");
+    useAppStore.setState({
+      auth: {
+        isAuthenticated: true,
+        user: testUser(),
+        authenticatedAt: "2026-05-14T10:00:00Z",
+        status: "idle",
+        error: null,
+      },
+    });
     const router = createMemoryRouter(
       [
         { path: "/login", element: <LoginPage /> },

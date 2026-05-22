@@ -1,33 +1,42 @@
 import { httpClient } from "@/shared/api";
-import type {
-  LogoutResponse,
-  RequestOtpResponse,
-  SessionResponse,
-  VerifyOtpResponse,
+import { parseAuthResponse } from "./parseAuthResponse";
+import {
+  logoutResponseSchema,
+  requestOtpResponseSchema,
+  sessionResponseSchema,
+  verifyOtpResponseSchema,
+  type LogoutResponse,
+  type RequestOtpResponse,
+  type SessionResponse,
+  type VerifyOtpResponse,
 } from "./schemas";
 
 const AUTH_PREFIX = "/auth";
 
 export async function requestOtp(email: string): Promise<RequestOtpResponse> {
-  return httpClient.post<RequestOtpResponse>(`${AUTH_PREFIX}/request-otp`, {
+  const data = await httpClient.post<unknown>(`${AUTH_PREFIX}/request-otp`, {
     email,
   });
+  return parseAuthResponse(requestOtpResponseSchema, data);
 }
 
 export async function verifyOtp(
   challengeId: string,
   otpCode: string,
 ): Promise<VerifyOtpResponse> {
-  return httpClient.post<VerifyOtpResponse>(`${AUTH_PREFIX}/verify-otp`, {
+  const data = await httpClient.post<unknown>(`${AUTH_PREFIX}/verify-otp`, {
     challenge_id: challengeId,
     otp_code: otpCode,
   });
+  return parseAuthResponse(verifyOtpResponseSchema, data);
 }
 
 export async function getSession(): Promise<SessionResponse> {
-  return httpClient.get<SessionResponse>(`${AUTH_PREFIX}/session`);
+  const data = await httpClient.get<unknown>(`${AUTH_PREFIX}/session`);
+  return parseAuthResponse(sessionResponseSchema, data);
 }
 
 export async function logout(): Promise<LogoutResponse> {
-  return httpClient.post<LogoutResponse>(`${AUTH_PREFIX}/logout`);
+  const data = await httpClient.post<unknown>(`${AUTH_PREFIX}/logout`);
+  return parseAuthResponse(logoutResponseSchema, data);
 }

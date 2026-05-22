@@ -14,12 +14,12 @@ describe("createAuthSlice", () => {
     store = makeStore();
   });
 
-  it("initial state is unauthenticated, idle, no user", () => {
+  it("initial state is unauthenticated, checking session, no user", () => {
     const s = store.getState();
     expect(s.auth.isAuthenticated).toBe(false);
     expect(s.auth.user).toBeNull();
     expect(s.auth.authenticatedAt).toBeNull();
-    expect(s.auth.status).toBe("idle");
+    expect(s.auth.status).toBe("checking");
     expect(s.auth.error).toBeNull();
   });
 

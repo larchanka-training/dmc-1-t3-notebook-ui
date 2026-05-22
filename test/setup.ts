@@ -2,6 +2,8 @@ import "@testing-library/jest-dom/vitest";
 import { afterAll, afterEach, beforeAll } from "vitest";
 import { cleanup } from "@testing-library/react";
 import { useAppStore } from "@/app/model";
+import { queryClient } from "@/app/providers/queryClient";
+import { resetAuthMockState } from "./msw/handlers/auth";
 import { server } from "./msw/server";
 
 // jsdom's AbortSignal is not recognized by Node's undici Request (used by
@@ -53,6 +55,8 @@ const initialStoreState = useAppStore.getInitialState();
 
 afterEach(() => {
   server.resetHandlers();
+  resetAuthMockState();
+  queryClient.clear();
   cleanup();
   globalThis.localStorage.clear();
   useAppStore.setState(initialStoreState, true);

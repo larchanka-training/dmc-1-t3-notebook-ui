@@ -22,7 +22,7 @@ export function useLoginForm() {
   } = useRequestOtpMutation({
     onSuccess: (data) => {
       setChallengeId(data.challenge_id);
-      setDevOtpHint(data.dev_otp ?? null);
+      setDevOtpHint(import.meta.env.DEV ? (data.dev_otp ?? null) : null);
       setOtpExpiryHint(formatOtpExpiry(data.expires_in_seconds));
       setStep("verify");
       setOtp("");

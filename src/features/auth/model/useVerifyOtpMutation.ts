@@ -23,12 +23,6 @@ export function useVerifyOtpMutation() {
       verifyOtp(challengeId, otpCode),
     onMutate: () => setAuthStatus("verifyingOtp"),
     onSuccess: (data) => {
-      const user = data?.user;
-
-      if (!user?.email) {
-        return;
-      }
-
       const { user: authUser, authenticatedAt } = authFromVerifyResponse(data);
       setAuthUser(authUser, authenticatedAt);
       void queryClient.invalidateQueries({ queryKey: authQueryKeys.session });

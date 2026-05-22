@@ -5,6 +5,21 @@ const API = "/api/v1/auth";
 let lastChallengeId = "otp_ch_test";
 let lastDevOtp = "123456";
 let lastEmail = "user@example.com";
+let sessionAuthenticated = false;
+
+export function setMockSessionAuthenticated(authenticated: boolean, email = lastEmail) {
+  sessionAuthenticated = authenticated;
+  if (email) {
+    lastEmail = email;
+  }
+}
+
+export function resetAuthMockState() {
+  lastChallengeId = "otp_ch_test";
+  lastDevOtp = "123456";
+  lastEmail = "user@example.com";
+  sessionAuthenticated = false;
+}
 
 export const authHandlers = [
   http.post(`${API}/request-otp`, async ({ request }) => {
@@ -37,6 +52,7 @@ export const authHandlers = [
         { status: 401 },
       );
     }
+    sessionAuthenticated = true;
     return HttpResponse.json({
       user: {
         id: "usr_test",
@@ -47,9 +63,22 @@ export const authHandlers = [
     });
   }),
 
-  http.get(`${API}/session`, () =>
-    HttpResponse.json({ authenticated: false as const }),
-  ),
+  http.get(`${API}/session`, () => {
+    if (!sessionAuthenticated) {
+      return HttpResponse.json({ authenticated: false as const });
+    }
+    return HttpResponse.json({
+      authenticated: true as const,
+      user: {
+        id: "usr_test",
+        email: lastEmail,
+        display_name: null,
+      },
+    });
+  }),
 
-  http.post(`${API}/logout`, () => HttpResponse.json({ logged_out: true })),
+  http.post(`${API}/logout`, () => {
+    sessionAuthenticated = false;
+    return HttpResponse.json({ logged_out: true });
+  }),
 ];
