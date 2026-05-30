@@ -15,6 +15,7 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         "@": path.resolve(projectRoot, "./src"),
+        "@test": path.resolve(projectRoot, "./test"),
       },
     },
     server: {
@@ -22,6 +23,12 @@ export default defineConfig(({ mode }) => {
       port,
       strictPort: true,
       allowedHosts: ["notebook.com"],
+      proxy: {
+        "/api": {
+          target: env.VITE_API_PROXY_TARGET?.trim() || "http://localhost:8000",
+          changeOrigin: true,
+        },
+      },
     },
     test: {
       environment: "jsdom",

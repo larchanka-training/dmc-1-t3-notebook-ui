@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { useAppStore } from "@/app/model";
+import { Button } from "@/shared/ui";
 
 type AppErrorBoundaryProps = {
   children: ReactNode;
@@ -37,13 +38,13 @@ export class AppErrorBoundary extends Component<
           <p className="max-w-md text-center text-sm text-ink-muted">
             The application hit an error. Reload the page to continue.
           </p>
-          <button
+          <Button
             type="button"
-            className="rounded-lg border border-border-token bg-surface px-4 py-2 text-sm font-medium text-ink hover:border-accent-primary"
+            variant="outline"
             onClick={() => globalThis.location.reload()}
           >
             Reload
-          </button>
+          </Button>
         </div>
       );
     }

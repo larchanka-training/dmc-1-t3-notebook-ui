@@ -26,6 +26,11 @@ export default [
         crypto: "readonly",
         HTMLInputElement: "readonly",
         HTMLButtonElement: "readonly",
+        HTMLDivElement: "readonly",
+        fetch: "readonly",
+        Response: "readonly",
+        HeadersInit: "readonly",
+        AbortSignal: "readonly",
       },
     },
     plugins: {
