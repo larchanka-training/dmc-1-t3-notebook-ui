@@ -15,7 +15,11 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "types": ["vitest"]
+    "types": ["vitest"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   },
-  "include": ["src", "src/**/*.test.ts", "src/**/*.test.tsx"]
+  "include": ["src", "test", "src/**/*.test.ts", "src/**/*.test.tsx"]
 }

@@ -4,10 +4,12 @@ import tsParser from "@typescript-eslint/parser";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
 import prettier from "eslint-config-prettier";
+import { fsdBoundariesConfig } from "./eslint.fsd.config.js";
 
 export default [
   { ignores: ["dist"] },
   js.configs.recommended,
+  fsdBoundariesConfig,
   {
     files: ["**/*.{ts,tsx}"],
     languageOptions: {
@@ -15,27 +17,27 @@ export default [
       parserOptions: {
         ecmaVersion: "latest",
         sourceType: "module",
-        ecmaFeatures: { jsx: true }
+        ecmaFeatures: { jsx: true },
       },
       globals: {
         document: "readonly",
         window: "readonly",
-        console: "readonly"
-      }
+        console: "readonly",
+        crypto: "readonly",
+        HTMLInputElement: "readonly",
+        HTMLButtonElement: "readonly",
+      },
     },
     plugins: {
       "@typescript-eslint": tseslint,
       "react-hooks": reactHooks,
-      "react-refresh": reactRefresh
+      "react-refresh": reactRefresh,
     },
     rules: {
       ...tseslint.configs.recommended.rules,
       ...reactHooks.configs.recommended.rules,
-      "react-refresh/only-export-components": [
-        "warn",
-        { allowConstantExport: true }
-      ]
-    }
+      "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
+    },
   },
-  prettier
+  prettier,
 ];
