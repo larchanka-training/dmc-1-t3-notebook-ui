@@ -4,10 +4,12 @@ import { useAppStore } from "@/app/model";
 
 export function useLoginPage() {
   const isAuthenticated = useAppStore((s) => s.auth.isAuthenticated);
+  const status = useAppStore((s) => s.auth.status);
 
-  const redirect: ReactNode | null = isAuthenticated ? (
-    <Navigate to="/notebooks" replace />
-  ) : null;
+  const redirect: ReactNode | null =
+    status !== "checking" && isAuthenticated ? (
+      <Navigate to="/notebooks" replace />
+    ) : null;
 
-  return { redirect };
+  return { redirect, isCheckingSession: status === "checking" };
 }

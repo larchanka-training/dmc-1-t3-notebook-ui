@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { useAppStore } from "@/app/model";
+import { testUser } from "@test/authFixtures";
 import { NotebooksListPage } from "@/pages/notebooks-list";
 
 describe("NotebooksListPage", () => {
@@ -11,7 +12,8 @@ describe("NotebooksListPage", () => {
     useAppStore.setState({
       auth: {
         isAuthenticated: true,
-        userEmail: "user@example.com",
+        user: testUser(),
+        authenticatedAt: null,
         status: "idle",
         error: null,
       },
@@ -40,7 +42,8 @@ describe("NotebooksListPage", () => {
     useAppStore.setState({
       auth: {
         isAuthenticated: true,
-        userEmail: "user@example.com",
+        user: testUser(),
+        authenticatedAt: null,
         status: "idle",
         error: null,
       },

@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Button, EmptyState } from "@/shared/ui";
+import { Button, Card, EmptyState } from "@/shared/ui";
 import { useNotebooksList } from "../model/useNotebooksList";
 
 export function NotebooksList() {
@@ -28,21 +28,23 @@ export function NotebooksList() {
         </EmptyState>
       )}
       {status === "idle" && items.length > 0 && (
-        <ul className="divide-y divide-border-token rounded border border-border-token bg-surface">
-          {items.map((nb) => (
-            <li key={nb.id}>
-              <Link
-                to={`/notebooks/${nb.id}`}
-                className="block px-token-16 py-token-12 text-sm text-ink no-underline transition-colors hover:bg-editor focus-visible:bg-editor focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
-              >
-                <span className="font-medium">{nb.title}</span>
-                <span className="mt-1 block text-xs text-ink-muted">
-                  Updated {new Date(nb.updatedAt).toLocaleString()}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <Card className="overflow-hidden rounded-lg border-border-token bg-surface shadow-sm">
+          <ul className="divide-y divide-border-token">
+            {items.map((nb) => (
+              <li key={nb.id}>
+                <Link
+                  to={`/notebooks/${nb.id}`}
+                  className="block px-token-16 py-token-12 text-sm text-ink no-underline transition-colors hover:bg-editor focus-visible:bg-editor focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
+                >
+                  <span className="font-medium">{nb.title}</span>
+                  <span className="mt-1 block text-xs text-ink-muted">
+                    Updated {new Date(nb.updatedAt).toLocaleString()}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Card>
       )}
     </div>
   );

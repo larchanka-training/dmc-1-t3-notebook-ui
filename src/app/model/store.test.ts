@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { testUser } from "@test/authFixtures";
 import { useAppStore } from "./store";
 
 describe("useAppStore", () => {
@@ -17,7 +18,8 @@ describe("useAppStore", () => {
     useAppStore.setState({
       auth: {
         isAuthenticated: true,
-        userEmail: "x@y.z",
+        user: testUser("x@y.z"),
+        authenticatedAt: null,
         status: "idle",
         error: null,
       },

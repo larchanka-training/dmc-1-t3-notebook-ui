@@ -1,4 +1,5 @@
 import { createJSONStorage } from "zustand/middleware";
+import { initialAuthState } from "@/features/auth/@x/app";
 import type { AppState } from "./types";
 
 export const AUTH_STORAGE_KEY = "js-notebook-auth";
@@ -9,17 +10,12 @@ export const authPersistOptions = {
   partialize: (state: AppState) => ({
     auth: {
       isAuthenticated: state.auth.isAuthenticated,
-      userEmail: state.auth.userEmail,
+      user: state.auth.user,
+      authenticatedAt: state.auth.authenticatedAt,
     },
   }),
-  merge: (persisted: unknown, current: AppState) => {
-    const stored = persisted as
-      | { auth?: { isAuthenticated?: boolean; userEmail?: string | null } }
-      | undefined;
-
-    return {
-      ...current,
-      auth: { ...current.auth, ...(stored?.auth ?? {}) },
-    };
-  },
+  merge: (_persisted: unknown, current: AppState) => ({
+    ...current,
+    auth: initialAuthState,
+  }),
 };
