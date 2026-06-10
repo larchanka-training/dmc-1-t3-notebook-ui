@@ -14,16 +14,12 @@ Recommended frontend notebook shape:
 {
   "id": "nb_123",
   "title": "Example notebook",
-  "tags": ["reference", "demo"],
   "blocks": [
     {
       "id": "blk_1",
       "type": "text",
       "content": {
         "markdown": "# Title"
-      },
-      "meta": {
-        "tags": ["intro", "summary"]
       }
     },
     {
@@ -32,9 +28,6 @@ Recommended frontend notebook shape:
       "content": {
         "language": "javascript",
         "source": "const x = 1;\nconsole.log(x);"
-      },
-      "meta": {
-        "tags": ["example", "javascript"]
       }
     }
   ],
@@ -50,7 +43,6 @@ Recommended frontend notebook shape:
 
 - `id`
 - `title`
-- `tags`
 - `blocks`
 - `revision`
 - `createdAt`
@@ -59,7 +51,6 @@ Recommended frontend notebook shape:
 ### Notes
 
 - `revision` is the last durable server revision known to the client
-- `tags` stores notebook-level tags as a list of strings
 - `blocks` are ordered by array order
 - Version 1 does not use additional block layout metadata
 
@@ -70,11 +61,10 @@ Recommended frontend notebook shape:
 - `id`
 - `type`
 - `content`
+
+Optional future-safe fields:
+
 - `meta`
-
-Required shared metadata fields:
-
-- `meta.tags`
 
 ### Text Block
 
@@ -84,9 +74,6 @@ Required shared metadata fields:
   "type": "text",
   "content": {
     "markdown": "## Notes\nSome text."
-  },
-  "meta": {
-    "tags": ["notes", "draft"]
   }
 }
 ```
@@ -95,7 +82,6 @@ Rules:
 
 - `type` must be `text`
 - `content.markdown` is the editable source of truth
-- `meta.tags` is required and stores block tags as a list of strings
 
 ### Code Block
 
@@ -106,9 +92,6 @@ Rules:
   "content": {
     "language": "javascript",
     "source": "fetch('/api').then(console.log)"
-  },
-  "meta": {
-    "tags": ["api", "example"]
   }
 }
 ```
@@ -118,7 +101,6 @@ Rules:
 - `type` must be `code`
 - Version 1 `language` should always be `javascript`
 - the code source remains normal editable content after AI updates
-- `meta.tags` is required and stores block tags as a list of strings
 
 ## Output Schemas
 
