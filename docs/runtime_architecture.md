@@ -18,7 +18,7 @@ Recommended model:
 
 - execution orchestration lives in the frontend application
 - code execution happens in a dedicated `Web Worker`
-- the worker owns the execution session state
+- the worker owns the execution session state boundary
 
 This is the recommended Version 1 baseline because it balances:
 
@@ -53,12 +53,12 @@ Reason:
 ### Session Start
 
 - the first execution creates a runtime session
-- the worker initializes a persistent scope for the notebook
+- the worker initializes the notebook runtime boundary for the session
 
 ### Session Reuse
 
 - running another block in the same notebook reuses the same worker session
-- variables and previously defined functions remain available
+- variables and previously defined functions remain available according to the current runtime implementation model
 
 ### Session Reset
 
@@ -125,6 +125,21 @@ The runtime bridge should convert raw worker messages into frontend output types
 
 The worker should not send arbitrary UI markup.
 
+### Output Storage Semantics
+
+Version 1 frontend state should store execution outputs per `blockId` as `outputs of latest run`.
+
+Recommended semantics:
+
+- `outputs[blockId]` is an ordered array of normalized outputs produced by the latest run of that block
+- a new run for that block replaces the previous latest-run array instead of appending to a session-wide history
+- the array order must match the arrival order of normalized runtime messages
+- missing `outputs[blockId]` means the block has no result from a latest run yet
+- present but empty `outputs[blockId]` means the latest run has started but no outputs have arrived yet
+- `text` blocks do not receive output entries
+
+This model keeps the Stage 5 store compatible with future multi-message outputs without turning the execution store into a durable or session-wide event log.
+
 ## Security Boundaries
 
 Version 1 notebook code is untrusted.
@@ -146,18 +161,53 @@ Browser constraints already help because `HTTP-only` cookies are not directly re
 
 ## Runtime Bridge Messages
 
-Recommended message categories:
+Recommended message categories are split by direction.
+
+App to worker:
 
 - `RUN_BLOCKS`
-- `EXECUTION_RESULT`
-- `EXECUTION_ERROR`
-- `EXECUTION_COMPLETE`
 - `RESET_SESSION`
 - `TERMINATE_SESSION`
+
+Worker to app:
+
+- `execution-started`
+- `execution-output`
+- `execution-error`
+- `execution-complete`
+
+Runtime messages should also carry a run-scoped identifier such as `executionId`.
+
+Reason:
+
+- prevents stale worker messages from a terminated or replaced worker from mutating the current execution state
+- allows the store to ignore outputs or errors that belong to an older run after `stop`, `reset`, timeout, or rapid re-run
+
+### Current MVP Note
+
+The current worker bridge implementation covers:
+
+- typed runtime protocol
+- worker spawn and terminate lifecycle
+- session reuse for sequential `run current` and `run from selected` executions
+- reset before `run all`
+- timeout-driven terminate and recreate behavior
+- notebook-order sequencing in the execution orchestrator for `run current`, `run all`, and `run from selected`
+
+The worker bridge still remains transport and lifecycle infrastructure.
+
+Notebook-order range selection remains an execution orchestrator responsibility rather than a worker responsibility.
+
+Current implementation limitation:
+
+- the runtime currently restores session behavior through replay of previously executed source blocks rather than through a true live lexical scope
+- this is sufficient for the current Stage 5 MVP but can replay upstream side effects and differs from a long-lived kernel model
+- the transition plan for moving from replay-based session restoration to a live worker session is documented in `docs/plans/06-live-worker-session-transition-plan.md`
 
 ## Open Questions
 
 - whether to expose a limited console capture API in Version 1
+- whether future versions should promote latest-run output arrays into a richer console or streaming model
 - whether to permit `fetch` from notebook code in Version 1 or gate it behind a runtime policy
 - whether charts are emitted as explicit chart objects or inferred from helper API calls
 - whether a future iframe-based DOM runtime will be needed for richer examples

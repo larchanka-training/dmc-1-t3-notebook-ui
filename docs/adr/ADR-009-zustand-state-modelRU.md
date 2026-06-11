@@ -25,9 +25,11 @@ Accepted
 - один store не владеет и durable content, и execution outputs
 - `blockUiStore` не владеет content
 - `authStore` не владеет notebook content
+- после централизации execution lifecycle и outputs в `executionStore` они не должны возвращаться в editor-local state
 
 ## Consequences
 
 - logout: reset list, active notebook, execution, sync
 - switch notebook: clear block UI + execution, load new working copy
+- во время миграции ownership execution может перейти в composed app store раньше, чем завершится консолидация notebook working copy
 - server data — React Query ([ADR-006](./ADR-006-api-client-strategyRU.md))
