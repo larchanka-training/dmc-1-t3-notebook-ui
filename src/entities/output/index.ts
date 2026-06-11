@@ -1,8 +1,2 @@
-export type { OutputPlaceholder } from "./model/types";
-export {
-  createOutputPlaceholder,
-  getOutputForBlock,
-  outputBlockIds,
-} from "./lib/outputModel";
-export { sampleOutputPlaceholders } from "./lib/sampleOutputs";
-export { OutputPlaceholderView } from "./ui/OutputPlaceholderView";
+export type { OutputItem } from "./model/types";
+export { OutputView } from "./ui/OutputView";

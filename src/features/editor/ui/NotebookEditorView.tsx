@@ -7,8 +7,19 @@ type NotebookEditorViewProps = {
 };
 
 export function NotebookEditorView({ notebookId }: NotebookEditorViewProps) {
-  const { notebook, actions, contentBlockIds, boundOutputIds, lastBlockId, getOutput } =
-    useNotebookEditor(notebookId);
+  const {
+    notebook,
+    actions,
+    contentBlockIds,
+    boundOutputIds,
+    lastBlockId,
+    executionStatus,
+    executionMessage,
+    canStartExecution,
+    canStopExecution,
+    getBlockExecutionState,
+    getOutputs,
+  } = useNotebookEditor(notebookId);
 
   return (
     <div className="min-h-full bg-app text-ink">
@@ -16,6 +27,10 @@ export function NotebookEditorView({ notebookId }: NotebookEditorViewProps) {
         notebook={notebook}
         lastBlockId={lastBlockId}
         actions={actions}
+        executionMessage={executionMessage}
+        executionStatus={executionStatus}
+        canStartExecution={canStartExecution}
+        canStopExecution={canStopExecution}
       />
 
       <section
@@ -47,8 +62,9 @@ export function NotebookEditorView({ notebookId }: NotebookEditorViewProps) {
             block={block}
             index={index}
             blockCount={notebook.blocks.length}
-            output={getOutput(block.id)}
+            outputs={getOutputs(block.id)}
             actions={actions}
+            executionState={getBlockExecutionState(block.id)}
           />
         ))}
       </section>

@@ -1,7 +1,7 @@
 import type { NotebookBlock } from "@/entities/notebook";
 import { CodeBlockEditor, TextBlockEditor } from "@/entities/block";
-import { OutputPlaceholderView } from "@/entities/output";
-import type { OutputPlaceholder } from "@/entities/output";
+import { OutputView } from "@/entities/output";
+import type { OutputItem } from "@/entities/output";
 import { cn } from "@/shared/lib";
 import { editorRunButtonClass } from "../lib/editorStyles";
 import type { BlockActions } from "../model/types";
@@ -11,16 +11,24 @@ type NotebookBlockViewProps = {
   block: NotebookBlock;
   index: number;
   blockCount: number;
-  output?: OutputPlaceholder;
+  outputs?: OutputItem[];
   actions: BlockActions;
+  executionState: {
+    isRunning: boolean;
+    isTarget: boolean;
+    canRun: boolean;
+    canRunFromHere: boolean;
+    canStop: boolean;
+  };
 };
 
 export function NotebookBlockView({
   block,
   index,
   blockCount,
-  output,
+  outputs,
   actions,
+  executionState,
 }: NotebookBlockViewProps) {
   return (
     <article
@@ -34,6 +42,7 @@ export function NotebookBlockView({
         isFirst={index === 0}
         isLast={index === blockCount - 1}
         actions={actions}
+        executionState={executionState}
       />
       <div
         className={cn(
@@ -56,7 +65,7 @@ export function NotebookBlockView({
               onRun={() => actions.runBlock(block.id)}
               onChange={(source) => actions.updateCode(block.id, source)}
             />
-            <OutputPlaceholderView blockId={block.id} output={output} />
+            <OutputView blockId={block.id} outputs={outputs} />
           </div>
         )}
       </div>

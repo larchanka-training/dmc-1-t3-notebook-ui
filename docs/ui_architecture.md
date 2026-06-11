@@ -73,6 +73,19 @@ The frontend architecture should:
 - allow mock-first implementation before backend integration
 - remain testable at page, store, and pure logic levels
 
+### 3.2 Current Implementation Note
+
+The target ownership model remains:
+
+- notebook working copy belongs to notebook editing state
+- execution lifecycle and runtime outputs belong to `executionStore`
+
+During the current migration phase:
+
+- execution lifecycle and runtime outputs are already centralized in the global Zustand execution store
+- parts of notebook editing flow may still be coordinated by editor-local hooks until notebook-state consolidation is completed
+- execution state must not be reintroduced into editor-local state even while notebook editing remains partially local
+
 ## 4. Source Code Layout (Feature-Sliced Design)
 
 The frontend codebase in `ui/src/` follows **Feature-Sliced Design (FSD)**.

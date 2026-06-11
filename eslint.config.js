@@ -31,6 +31,13 @@ export default [
         Response: "readonly",
         HeadersInit: "readonly",
         AbortSignal: "readonly",
+        Worker: "readonly",
+        URL: "readonly",
+        setTimeout: "readonly",
+        clearTimeout: "readonly",
+        MessageEvent: "readonly",
+        ErrorEvent: "readonly",
+        self: "readonly",
       },
     },
     plugins: {
