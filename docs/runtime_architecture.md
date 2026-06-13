@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document defines the recommended frontend-side JavaScript execution model for Version 1.
+This document defines the current frontend-side JavaScript execution model for Version 1.
 
 The project architecture already fixes:
 
@@ -12,15 +12,15 @@ The project architecture already fixes:
 
 ## Where And How JavaScript Executes
 
-Notebook JavaScript should execute in the browser, outside the main UI thread.
+Notebook JavaScript executes in the browser, outside the main UI thread.
 
-Recommended model:
+Current model:
 
 - execution orchestration lives in the frontend application
 - code execution happens in a dedicated `Web Worker`
 - the worker owns the execution session state boundary
 
-This is the recommended Version 1 baseline because it balances:
+This is the implemented Version 1 baseline because it balances:
 
 - implementation complexity
 - responsiveness
@@ -28,7 +28,7 @@ This is the recommended Version 1 baseline because it balances:
 
 ## Worker vs iframe Strategy
 
-### Recommended Version 1 Choice
+### Current Version 1 Choice
 
 Use a dedicated `Web Worker` as the primary runtime.
 
@@ -59,15 +59,21 @@ Reason:
 
 - running another block in the same notebook reuses the same worker session
 - variables and previously defined functions remain available according to the current runtime implementation model
+- current Stage 6 semantics:
+  - `run current` reuses the current live worker session without replaying upstream source history inside the runtime
+  - `run from here` reuses the current live worker session without replaying upstream source history inside the runtime
+  - if the current session has already been reset, terminated, timed out, or does not contain the upstream state required by the selected range, the runtime must not silently reconstruct that state through hidden replay fallback
+  - the user-visible behavior for that missing-state case must stay explicit in orchestrator/runtime contracts rather than being inferred from incidental implementation details
 
 ### Session Reset
 
 - `run all` may either:
   - reset the session first and execute from top to bottom
   - or explicitly provide a separate `reset and run all` action
-- recommended Version 1 behavior:
+- current Version 1 behavior:
   - `run all` resets the session before running
-  - `run current` and `run from selected` reuse the current session unless a reset is requested
+  - `run current` and `run from here` reuse the current session unless a reset is requested
+  - `run all` remains the standard clean-session entry point before full notebook execution
 
 ### Session End
 
@@ -78,7 +84,7 @@ Reason:
 
 ### Timeout
 
-Recommended Version 1 approach:
+Current Version 1 approach:
 
 - orchestrator tracks a configurable soft timeout
 - if the worker exceeds the timeout, the UI marks the execution as timed out
@@ -86,7 +92,7 @@ Recommended Version 1 approach:
 
 ### Cancelation
 
-Recommended Version 1 approach:
+Current Version 1 approach:
 
 - stop action terminates the current worker
 - a fresh worker is spawned for future runs
@@ -112,6 +118,15 @@ Normalization categories:
 - timeout
 - canceled execution
 - internal runtime bridge error
+
+### Session Validity After Errors
+
+Current semantics:
+
+- a syntax error in one block run does not implicitly reset the whole worker session
+- a runtime error in one block run does not automatically mark the whole worker session as corrupted
+- previously established session state remains valid unless the runtime is explicitly reset, stopped, terminated, or replaced after timeout
+- `stop` and `timeout` are the coarse-grained cases that terminate the worker and guarantee that the next run starts from a clean session
 
 ## Output Normalization
 
@@ -144,7 +159,7 @@ This model keeps the Stage 5 store compatible with future multi-message outputs 
 
 Version 1 notebook code is untrusted.
 
-Recommended boundaries:
+Current boundaries:
 
 - runtime must not get direct access to React app internals
 - runtime must not mutate app state except through normalized message outputs
@@ -161,7 +176,7 @@ Browser constraints already help because `HTTP-only` cookies are not directly re
 
 ## Runtime Bridge Messages
 
-Recommended message categories are split by direction.
+Current message categories are split by direction.
 
 App to worker:
 
@@ -183,26 +198,28 @@ Reason:
 - prevents stale worker messages from a terminated or replaced worker from mutating the current execution state
 - allows the store to ignore outputs or errors that belong to an older run after `stop`, `reset`, timeout, or rapid re-run
 
-### Current MVP Note
+### Current Implementation Note
 
 The current worker bridge implementation covers:
 
 - typed runtime protocol
 - worker spawn and terminate lifecycle
-- session reuse for sequential `run current` and `run from selected` executions
+- session reuse for sequential `run current` and `run from here` executions
 - reset before `run all`
 - timeout-driven terminate and recreate behavior
-- notebook-order sequencing in the execution orchestrator for `run current`, `run all`, and `run from selected`
+- notebook-order sequencing in the execution orchestrator for `run current`, `run all`, and `run from here`
 
 The worker bridge still remains transport and lifecycle infrastructure.
 
 Notebook-order range selection remains an execution orchestrator responsibility rather than a worker responsibility.
 
-Current implementation limitation:
+Current runtime behavior:
 
-- the runtime currently restores session behavior through replay of previously executed source blocks rather than through a true live lexical scope
-- this is sufficient for the current Stage 5 MVP but can replay upstream side effects and differs from a long-lived kernel model
-- the transition plan for moving from replay-based session restoration to a live worker session is documented in `docs/plans/06-live-worker-session-transition-plan.md`
+- the runtime now keeps session state inside the live worker context instead of replaying previously executed source blocks before each run
+- repeated `run current` of the same block rebinds top-level declarations inside the live session without relying on replay-branch truncation
+- `run from here` executes only the block sequence provided by the orchestrator; it does not reconstruct omitted upstream state through hidden replay
+- after reset, stop, timeout, or fresh session start, missing upstream state remains an explicit contract case and surfaces through normal runtime errors until the needed setup blocks are run again
+- the Stage 6 migration summary remains documented in `docs/plans/06-live-worker-session-transition-plan.md` as historical context
 
 ## Open Questions
 
