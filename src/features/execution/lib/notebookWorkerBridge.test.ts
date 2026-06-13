@@ -111,6 +111,70 @@ describe("NotebookWorkerBridge", () => {
     expect(onError).not.toHaveBeenCalled();
   });
 
+  it("starts the next run in a fresh worker after stop terminates the active run", async () => {
+    const workers: FakeWorker[] = [];
+    const onMessage = vi.fn();
+    const onError = vi.fn();
+    const bridge = new NotebookWorkerBridge(() => {
+      const worker = new FakeWorker();
+      workers.push(worker);
+      return worker;
+    });
+
+    await bridge.run(
+      {
+        command: "run-current",
+        executionId: "exec_1",
+        targetBlockId: "blk_1",
+        blocks: [{ blockId: "blk_1", source: "while (true) {}" }],
+      },
+      { onMessage, onError },
+    );
+
+    bridge.stop("exec_1");
+
+    await bridge.run(
+      {
+        command: "run-current",
+        executionId: "exec_2",
+        targetBlockId: "blk_2",
+        blocks: [{ blockId: "blk_2", source: "2 + 2;" }],
+      },
+      { onMessage, onError },
+    );
+
+    workers[0].emit({
+      type: "execution-output",
+      executionId: "exec_1",
+      blockId: "blk_1",
+      output: { type: "text", payload: "stale" },
+    });
+    workers[1].emit({
+      type: "execution-output",
+      executionId: "exec_2",
+      blockId: "blk_2",
+      output: { type: "text", payload: "fresh" },
+    });
+
+    expect(workers).toHaveLength(2);
+    expect(workers[0].terminated).toBe(true);
+    expect(workers[1].messages).toEqual([
+      {
+        type: "RUN_BLOCKS",
+        executionId: "exec_2",
+        blocks: [{ blockId: "blk_2", source: "2 + 2;" }],
+      },
+    ]);
+    expect(onMessage).toHaveBeenCalledTimes(1);
+    expect(onMessage).toHaveBeenCalledWith({
+      type: "execution-output",
+      executionId: "exec_2",
+      blockId: "blk_2",
+      output: { type: "text", payload: "fresh" },
+    });
+    expect(onError).not.toHaveBeenCalled();
+  });
+
   it("terminates the worker and emits a timeout error when execution exceeds the deadline", async () => {
     vi.useFakeTimers();
 
@@ -148,5 +212,72 @@ describe("NotebookWorkerBridge", () => {
         message: "Execution timed out after 10ms",
       },
     });
+  });
+
+  it("starts the next run in a fresh worker after a timeout restart", async () => {
+    vi.useFakeTimers();
+
+    const workers: FakeWorker[] = [];
+    const onMessage = vi.fn();
+    const onError = vi.fn();
+    const bridge = new NotebookWorkerBridge(() => {
+      const worker = new FakeWorker();
+      workers.push(worker);
+      return worker;
+    });
+
+    await bridge.run(
+      {
+        command: "run-current",
+        executionId: "exec_1",
+        targetBlockId: "blk_1",
+        blocks: [{ blockId: "blk_1", source: "while (true) {}" }],
+        timeoutMs: 10,
+      },
+      { onMessage, onError },
+    );
+
+    vi.advanceTimersByTime(10);
+
+    await bridge.run(
+      {
+        command: "run-current",
+        executionId: "exec_2",
+        targetBlockId: "blk_2",
+        blocks: [{ blockId: "blk_2", source: "2 + 2;" }],
+      },
+      { onMessage, onError },
+    );
+
+    workers[0].emit({
+      type: "execution-output",
+      executionId: "exec_1",
+      blockId: "blk_1",
+      output: { type: "text", payload: "stale" },
+    });
+    workers[1].emit({
+      type: "execution-output",
+      executionId: "exec_2",
+      blockId: "blk_2",
+      output: { type: "text", payload: "fresh" },
+    });
+
+    expect(workers).toHaveLength(2);
+    expect(workers[0].terminated).toBe(true);
+    expect(workers[1].messages).toEqual([
+      {
+        type: "RUN_BLOCKS",
+        executionId: "exec_2",
+        blocks: [{ blockId: "blk_2", source: "2 + 2;" }],
+      },
+    ]);
+    expect(onMessage).toHaveBeenCalledTimes(1);
+    expect(onMessage).toHaveBeenCalledWith({
+      type: "execution-output",
+      executionId: "exec_2",
+      blockId: "blk_2",
+      output: { type: "text", payload: "fresh" },
+    });
+    expect(onError).toHaveBeenCalledTimes(1);
   });
 });

@@ -4,6 +4,7 @@ import type {
   RuntimeSourceBlock,
   RuntimeToAppMessage,
 } from "../model/types";
+import * as ts from "typescript";
 
 type RuntimePostMessage = (message: RuntimeToAppMessage) => void;
 
@@ -146,29 +147,131 @@ function normalizeRuntimeError(error: unknown): NormalizedExecutionError {
   };
 }
 
-function joinSources(blocks: RuntimeSourceBlock[]) {
-  return blocks.map((block) => block.source).join("\n\n");
+type RuntimeScope = Record<string, unknown>;
+
+type BindingCollector = {
+  count: number;
+};
+
+function collectBindingIdentifiers(
+  name: ts.BindingName,
+  identifiers: string[] = [],
+): string[] {
+  if (ts.isIdentifier(name)) {
+    identifiers.push(name.text);
+    return identifiers;
+  }
+
+  for (const element of name.elements) {
+    if (ts.isOmittedExpression(element)) {
+      continue;
+    }
+
+    collectBindingIdentifiers(element.name, identifiers);
+  }
+
+  return identifiers;
+}
+
+function buildVariableBindingStatement(
+  declaration: ts.VariableDeclaration,
+  sourceFile: ts.SourceFile,
+  collector: BindingCollector,
+): string {
+  const bindingNames = collectBindingIdentifiers(declaration.name);
+  const initializer = declaration.initializer
+    ? declaration.initializer.getText(sourceFile)
+    : "undefined";
+
+  if (bindingNames.length === 1 && ts.isIdentifier(declaration.name)) {
+    const [identifier] = bindingNames;
+    return `__notebookScope[${JSON.stringify(identifier)}] = (${initializer});`;
+  }
+
+  const tempName = `__notebookTmp_${collector.count}`;
+  collector.count += 1;
+  const bindingPattern = declaration.name.getText(sourceFile);
+  const assignments = bindingNames
+    .map(
+      (identifier) => `__notebookScope[${JSON.stringify(identifier)}] = ${identifier};`,
+    )
+    .join("\n");
+
+  return `{
+const ${tempName} = (${initializer});
+const ${bindingPattern} = ${tempName};
+${assignments}
+}`;
+}
+
+function toPersistentBindingStatement(
+  statement: ts.Statement,
+  sourceFile: ts.SourceFile,
+  collector: BindingCollector,
+): string {
+  if (ts.isVariableStatement(statement)) {
+    return statement.declarationList.declarations
+      .map((declaration) =>
+        buildVariableBindingStatement(declaration, sourceFile, collector),
+      )
+      .join("\n");
+  }
+
+  if (ts.isFunctionDeclaration(statement) && statement.name) {
+    return `__notebookScope[${JSON.stringify(statement.name.text)}] = ${statement.getText(sourceFile)};`;
+  }
+
+  if (ts.isClassDeclaration(statement) && statement.name) {
+    return `__notebookScope[${JSON.stringify(statement.name.text)}] = ${statement.getText(sourceFile)};`;
+  }
+
+  return statement.getText(sourceFile);
+}
+
+function transformBlockSource(source: string): string[] {
+  const sourceFile = ts.createSourceFile(
+    "notebook-block.js",
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.JS,
+  );
+  const collector: BindingCollector = { count: 0 };
+
+  return sourceFile.statements.map((statement, index, statements) => {
+    const isLastStatement = index === statements.length - 1;
+
+    if (isLastStatement && ts.isExpressionStatement(statement)) {
+      return `return (${statement.expression.getText(sourceFile)});`;
+    }
+
+    return toPersistentBindingStatement(statement, sourceFile, collector);
+  });
+}
+
+async function runInLiveSession(
+  scope: RuntimeScope,
+  runtimeConsole: RuntimeConsole,
+  source: string,
+) {
+  const statements = transformBlockSource(source);
+  const body = [
+    "const console = __notebookConsole;",
+    "with (__notebookScope) {",
+    ...statements,
+    "}",
+  ].join("\n");
+  const AsyncFunction = Object.getPrototypeOf(async function () {
+    return undefined;
+  }).constructor as new (
+    ...args: string[]
+  ) => (...values: unknown[]) => Promise<unknown>;
+  const execute = new AsyncFunction("__notebookScope", "__notebookConsole", body);
+  return execute(scope, runtimeConsole);
 }
 
 export function createNotebookRuntimeCore(postMessage: RuntimePostMessage) {
-  const sessionBlocks: RuntimeSourceBlock[] = [];
-
-  const truncateSessionFromIncomingBlocks = (blocks: RuntimeSourceBlock[]) => {
-    const overlapIndexes = blocks
-      .map((block) =>
-        sessionBlocks.findIndex(
-          (sessionBlock) => sessionBlock.blockId === block.blockId,
-        ),
-      )
-      .filter((index) => index >= 0);
-
-    if (overlapIndexes.length === 0) {
-      return;
-    }
-
-    const truncateFrom = Math.min(...overlapIndexes);
-    sessionBlocks.splice(truncateFrom);
-  };
+  const sessionScope: RuntimeScope = Object.create(null) as RuntimeScope;
 
   const emitOutput = (
     executionId: string,
@@ -212,25 +315,16 @@ export function createNotebookRuntimeCore(postMessage: RuntimePostMessage) {
     });
 
     const runtimeConsole = createRuntimeConsole(executionId, block.blockId);
-    const replaySource = joinSources(sessionBlocks);
-    const userSource = block.source.trim();
-    const program = [
-      "const console = globalThis.__notebookConsole;",
-      replaySource,
-      userSource,
-    ]
-      .filter((segment) => segment.length > 0)
-      .join("\n\n");
 
     try {
-      (
-        globalThis as typeof globalThis & { __notebookConsole?: RuntimeConsole }
-      ).__notebookConsole = runtimeConsole;
-      const result = eval(program) as unknown;
+      const result = await runInLiveSession(
+        sessionScope,
+        runtimeConsole,
+        block.source.trim(),
+      );
       if (result !== undefined) {
         emitOutput(executionId, block.blockId, normalizeValue(result));
       }
-      sessionBlocks.push(block);
       postMessage({
         type: "execution-complete",
         executionId,
@@ -245,16 +339,11 @@ export function createNotebookRuntimeCore(postMessage: RuntimePostMessage) {
         error: normalizeRuntimeError(error),
       });
       return false;
-    } finally {
-      delete (globalThis as typeof globalThis & { __notebookConsole?: RuntimeConsole })
-        .__notebookConsole;
     }
   };
 
   return {
     async runBlocks(executionId: string, blocks: RuntimeSourceBlock[]) {
-      truncateSessionFromIncomingBlocks(blocks);
-
       for (const block of blocks) {
         const succeeded = await executeBlock(executionId, block);
         if (!succeeded) {
@@ -263,10 +352,14 @@ export function createNotebookRuntimeCore(postMessage: RuntimePostMessage) {
       }
     },
     resetSession() {
-      sessionBlocks.length = 0;
+      for (const key of Object.keys(sessionScope)) {
+        delete sessionScope[key];
+      }
     },
     terminateSession() {
-      sessionBlocks.length = 0;
+      for (const key of Object.keys(sessionScope)) {
+        delete sessionScope[key];
+      }
     },
   };
 }

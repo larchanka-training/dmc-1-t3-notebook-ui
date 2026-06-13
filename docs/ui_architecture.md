@@ -75,14 +75,17 @@ The frontend architecture should:
 
 ### 3.2 Current Implementation Note
 
-The target ownership model remains:
+The current ownership model is:
 
 - notebook working copy belongs to notebook editing state
 - execution lifecycle and runtime outputs belong to `executionStore`
 
-During the current migration phase:
+Current execution behavior:
 
-- execution lifecycle and runtime outputs are already centralized in the global Zustand execution store
+- execution lifecycle and runtime outputs are centralized in the global Zustand execution store
+- the execution runtime uses a live worker session owned by the worker boundary
+- `run current` and `run from here` reuse the current live worker session unless the runtime has been reset or replaced
+- `run all` remains the explicit clean-session boundary that resets the worker before full notebook execution
 - parts of notebook editing flow may still be coordinated by editor-local hooks until notebook-state consolidation is completed
 - execution state must not be reintroduced into editor-local state even while notebook editing remains partially local
 
@@ -724,7 +727,7 @@ The frontend supports these execution actions:
 - run current block
 - stop current running execution flow when applicable
 - run all blocks
-- run from selected block
+- run from here
 
 The execution UI is responsible for:
 

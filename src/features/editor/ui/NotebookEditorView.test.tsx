@@ -62,6 +62,37 @@ describe("NotebookEditorView", () => {
 
   type BridgeHandlers = Parameters<typeof notebookWorkerBridge.run>[1];
 
+  const emitExecutionSuccess = (
+    request: RuntimeExecutionRequest,
+    handlers: BridgeHandlers,
+    blockId: string,
+    payload?: string,
+  ) => {
+    handlers.onMessage({
+      type: "execution-started",
+      executionId: request.executionId,
+      blockId,
+    });
+
+    if (payload !== undefined) {
+      handlers.onMessage({
+        type: "execution-output",
+        executionId: request.executionId,
+        blockId,
+        output: {
+          type: "text",
+          payload,
+        },
+      });
+    }
+
+    handlers.onMessage({
+      type: "execution-complete",
+      executionId: request.executionId,
+      blockId,
+    });
+  };
+
   it("renders a vertical notebook block list with text and code blocks", () => {
     renderEditor();
 
@@ -266,6 +297,63 @@ describe("NotebookEditorView", () => {
     expect(screen.getByText("blk_summarize:1")).toBeInTheDocument();
   });
 
+  it("reuses the live session for repeated current and downstream runs without upstream replay", async () => {
+    const user = userEvent.setup();
+    let orders: number[] | null = null;
+
+    bridgeRunMock.mockImplementation(
+      async (request: RuntimeExecutionRequest, handlers: BridgeHandlers) => {
+        if (request.command === "run-all") {
+          orders = null;
+        }
+
+        for (const block of request.blocks) {
+          if (block.blockId === "blk_prepare_data") {
+            orders = [48, 126, 74];
+            emitExecutionSuccess(request, handlers, block.blockId, "48,126,74");
+            continue;
+          }
+
+          if (!orders) {
+            handlers.onError({
+              executionId: request.executionId,
+              blockId: block.blockId,
+              error: {
+                kind: "runtime",
+                name: "ReferenceError",
+                message: "orders is not defined",
+              },
+            });
+            return;
+          }
+
+          emitExecutionSuccess(
+            request,
+            handlers,
+            block.blockId,
+            String(orders.reduce((sum, value) => sum + value, 0)),
+          );
+        }
+      },
+    );
+
+    renderEditor();
+
+    await user.click(screen.getByRole("button", { name: "Run blk_prepare_data" }));
+    await user.click(screen.getByRole("button", { name: "Run blk_summarize" }));
+    await user.click(
+      screen.getByRole("button", { name: "Run from here blk_summarize" }),
+    );
+
+    expect(
+      bridgeRunMock.mock.calls.map(
+        ([request]: [RuntimeExecutionRequest, BridgeHandlers]) =>
+          request.blocks.map((block) => block.blockId),
+      ),
+    ).toEqual([["blk_prepare_data"], ["blk_summarize"], ["blk_summarize"]]);
+    expect(screen.getByText("248")).toBeInTheDocument();
+  });
+
   it("shows running state, disables conflicting run controls, and enables stop", async () => {
     const user = userEvent.setup();
     bridgeRunMock.mockImplementation(async () => new Promise(() => {}));
@@ -335,6 +423,78 @@ describe("NotebookEditorView", () => {
     expect(screen.getByText("Execution timed out after 5000ms")).toBeInTheDocument();
   });
 
+  it("requires setup blocks again after a timeout reset and recovers on rerun", async () => {
+    const user = userEvent.setup();
+    let orders: number[] | null = null;
+    let timeoutNextSummarize = false;
+
+    bridgeRunMock.mockImplementation(
+      async (request: RuntimeExecutionRequest, handlers: BridgeHandlers) => {
+        if (request.command === "run-all") {
+          orders = null;
+        }
+
+        for (const block of request.blocks) {
+          if (block.blockId === "blk_prepare_data") {
+            orders = [48, 126, 74];
+            emitExecutionSuccess(request, handlers, block.blockId, "48,126,74");
+            continue;
+          }
+
+          if (timeoutNextSummarize) {
+            timeoutNextSummarize = false;
+            orders = null;
+            handlers.onError({
+              executionId: request.executionId,
+              blockId: block.blockId,
+              error: {
+                kind: "timeout",
+                name: "TimeoutError",
+                message: "Execution timed out after 5000ms",
+              },
+            });
+            return;
+          }
+
+          if (!orders) {
+            handlers.onError({
+              executionId: request.executionId,
+              blockId: block.blockId,
+              error: {
+                kind: "runtime",
+                name: "ReferenceError",
+                message: "orders is not defined",
+              },
+            });
+            return;
+          }
+
+          emitExecutionSuccess(request, handlers, block.blockId, "248");
+        }
+      },
+    );
+
+    renderEditor();
+
+    await user.click(screen.getByRole("button", { name: "Run blk_prepare_data" }));
+    timeoutNextSummarize = true;
+    await user.click(screen.getByRole("button", { name: "Run blk_summarize" }));
+    expect(
+      screen.getByText("Execution timed out: Execution timed out after 5000ms"),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Run blk_summarize" }));
+    expect(
+      screen.getByText("Execution failed: orders is not defined"),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Run blk_prepare_data" }));
+    await user.click(screen.getByRole("button", { name: "Run blk_summarize" }));
+
+    expect(screen.getByText("Execution idle")).toBeInTheDocument();
+    expect(screen.getByText("248")).toBeInTheDocument();
+  });
+
   it("shows runtime error state when execution fails", async () => {
     const user = userEvent.setup();
     bridgeRunMock.mockImplementation(
@@ -359,6 +519,80 @@ describe("NotebookEditorView", () => {
       screen.getByText("Execution failed: orders is not defined"),
     ).toBeInTheDocument();
     expect(screen.getByText("orders is not defined")).toBeInTheDocument();
+  });
+
+  it("keeps the live session valid across runtime and syntax errors", async () => {
+    const user = userEvent.setup();
+    let orders: number[] | null = null;
+    const summarizeFailures = [
+      {
+        kind: "runtime" as const,
+        name: "Error",
+        message: "boom",
+      },
+      {
+        kind: "syntax" as const,
+        name: "SyntaxError",
+        message: "Unexpected token ';'",
+      },
+    ];
+
+    bridgeRunMock.mockImplementation(
+      async (request: RuntimeExecutionRequest, handlers: BridgeHandlers) => {
+        if (request.command === "run-all") {
+          orders = null;
+        }
+
+        for (const block of request.blocks) {
+          if (block.blockId === "blk_prepare_data") {
+            orders = [48, 126, 74];
+            emitExecutionSuccess(request, handlers, block.blockId, "48,126,74");
+            continue;
+          }
+
+          if (!orders) {
+            handlers.onError({
+              executionId: request.executionId,
+              blockId: block.blockId,
+              error: {
+                kind: "runtime",
+                name: "ReferenceError",
+                message: "orders is not defined",
+              },
+            });
+            return;
+          }
+
+          const nextFailure = summarizeFailures.shift();
+          if (nextFailure) {
+            handlers.onError({
+              executionId: request.executionId,
+              blockId: block.blockId,
+              error: nextFailure,
+            });
+            return;
+          }
+
+          emitExecutionSuccess(request, handlers, block.blockId, "248");
+        }
+      },
+    );
+
+    renderEditor();
+
+    await user.click(screen.getByRole("button", { name: "Run blk_prepare_data" }));
+
+    await user.click(screen.getByRole("button", { name: "Run blk_summarize" }));
+    expect(screen.getByText("Execution failed: boom")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Run blk_summarize" }));
+    expect(
+      screen.getByText("Execution failed: Unexpected token ';'"),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Run blk_summarize" }));
+    expect(screen.getByText("Execution idle")).toBeInTheDocument();
+    expect(screen.getByText("248")).toBeInTheDocument();
   });
 
   it("uses route notebook id in the header summary", () => {
