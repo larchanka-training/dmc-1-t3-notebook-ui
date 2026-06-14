@@ -35,3 +35,5 @@ vite.config.d.ts
 .DS_Store
 .idea/
 .vscode/
+reports/junit-ui.xml
+reports/

@@ -29,6 +29,20 @@ describe("useAppStore", () => {
         error: null,
       },
       activeNotebook: { notebookId: "nb_1", blocks: [], dirty: true },
+      execution: {
+        status: "running",
+        activeExecutionId: "exec_1",
+        activeCommand: "run-current",
+        targetBlockId: "blk_1",
+        runningBlockIds: ["blk_1"],
+        outputs: {
+          blk_1: [{ type: "text", payload: "hello" }],
+        },
+        error: {
+          kind: "runtime",
+          message: "boom",
+        },
+      },
     });
 
     useAppStore.getState().logout();
@@ -38,5 +52,12 @@ describe("useAppStore", () => {
     expect(state.notebookList.items).toHaveLength(0);
     expect(state.activeNotebook.notebookId).toBeNull();
     expect(state.activeNotebook.dirty).toBe(false);
+    expect(state.execution.status).toBe("idle");
+    expect(state.execution.activeExecutionId).toBeNull();
+    expect(state.execution.activeCommand).toBeNull();
+    expect(state.execution.targetBlockId).toBeNull();
+    expect(state.execution.runningBlockIds).toEqual([]);
+    expect(state.execution.outputs).toEqual({});
+    expect(state.execution.error).toBeNull();
   });
 });

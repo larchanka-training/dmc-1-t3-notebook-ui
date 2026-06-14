@@ -102,11 +102,18 @@ Derived state is computed from base state and should not usually be persisted:
 
 ### `executionStore`
 
-- active session id
+- active execution id
+- active execution command
 - run status
 - running blocks
 - outputs by block id
 - execution error descriptors
+
+Current implementation note:
+
+- `executionStore.outputs` uses `Record<blockId, OutputItem[]>`
+- each `outputs[blockId]` array represents `outputs of latest run`, not a session-wide append-only history
+- execution lifecycle and runtime outputs are already owned by the global execution store even while notebook editing flow may still be partially coordinated by editor-local hooks during migration
 
 ### `syncStore`
 
@@ -126,6 +133,7 @@ Derived state is computed from base state and should not usually be persisted:
 ## Boundaries To Preserve
 
 - execution state must not become durable notebook state by accident
+- execution state must not be reintroduced into editor-local state once centralized in `executionStore`
 - sync state must describe alignment, not replace notebook content ownership
 - block UI state must not own actual notebook content
 - auth state must not store notebook content

@@ -21,7 +21,7 @@ export const sampleNotebook: Notebook = {
       content: {
         language: "javascript",
         source:
-          "const orders = [\n  { id: 1, total: 48 },\n  { id: 2, total: 126 },\n  { id: 3, total: 74 }\n];\n\norders.map((order) => order.total);",
+          "const orders = [\n  { id: 1, total: 48 },\n  { id: 2, total: 126 },\n  { id: 3, total: 74 }\n];\n\nconsole.log('test 1');\nconsole.log('order totals', orders.map((order) => order.total));\n\norders.map((order) => order.total);",
       },
     },
     {
@@ -38,7 +38,7 @@ export const sampleNotebook: Notebook = {
       content: {
         language: "javascript",
         source:
-          "const total = orders.reduce((sum, order) => sum + order.total, 0);\nconst average = total / orders.length;\n\n({ total, average });",
+          "const total = orders.reduce((sum, order) => sum + order.total, 0);\nconst average = total / orders.length;\n\nconsole.log('test 2');\nconsole.log('summary ready', { total, average });\n\n({ total, average });",
       },
     },
   ],

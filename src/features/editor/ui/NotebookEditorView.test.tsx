@@ -1,7 +1,9 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { RuntimeExecutionRequest } from "@/features/execution";
+import { notebookWorkerBridge } from "@/features/execution";
 import { NotebookEditorView } from "./NotebookEditorView";
 
 const renderEditor = (notebookId = "nb_jsnb_50") => {
@@ -18,6 +20,79 @@ const renderEditor = (notebookId = "nb_jsnb_50") => {
 };
 
 describe("NotebookEditorView", () => {
+  let bridgeRunMock: ReturnType<typeof vi.spyOn>;
+  let bridgeStopMock: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    bridgeRunMock = vi
+      .spyOn(notebookWorkerBridge, "run")
+      .mockImplementation(async (request, handlers) => {
+        request.blocks.forEach((block, index) => {
+          handlers.onMessage({
+            type: "execution-started",
+            executionId: request.executionId,
+            blockId: block.blockId,
+          });
+          handlers.onMessage({
+            type: "execution-output",
+            executionId: request.executionId,
+            blockId: block.blockId,
+            output: {
+              type: "text",
+              payload: `${block.blockId}:${index + 1}`,
+            },
+          });
+          handlers.onMessage({
+            type: "execution-complete",
+            executionId: request.executionId,
+            blockId: block.blockId,
+          });
+        });
+      });
+    bridgeStopMock = vi
+      .spyOn(notebookWorkerBridge, "stop")
+      .mockImplementation(() => {});
+    vi.spyOn(notebookWorkerBridge, "dispose").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  type BridgeHandlers = Parameters<typeof notebookWorkerBridge.run>[1];
+
+  const emitExecutionSuccess = (
+    request: RuntimeExecutionRequest,
+    handlers: BridgeHandlers,
+    blockId: string,
+    payload?: string,
+  ) => {
+    handlers.onMessage({
+      type: "execution-started",
+      executionId: request.executionId,
+      blockId,
+    });
+
+    if (payload !== undefined) {
+      handlers.onMessage({
+        type: "execution-output",
+        executionId: request.executionId,
+        blockId,
+        output: {
+          type: "text",
+          payload,
+        },
+      });
+    }
+
+    handlers.onMessage({
+      type: "execution-complete",
+      executionId: request.executionId,
+      blockId,
+    });
+  };
+
   it("renders a vertical notebook block list with text and code blocks", () => {
     renderEditor();
 
@@ -31,6 +106,10 @@ describe("NotebookEditorView", () => {
 
     expect(screen.getAllByRole("button", { name: /^Run blk_/ })).toHaveLength(2);
     expect(screen.getAllByRole("button", { name: /^Run block blk_/ })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: /^Run from here / })).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Run all" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /^Stop / })).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Stop" })).toBeInTheDocument();
     expect(screen.getAllByLabelText(/^Output area for blk_/)).toHaveLength(2);
   });
 
@@ -116,17 +195,404 @@ describe("NotebookEditorView", () => {
     expect(markdownInput).toHaveValue("Updated local note");
   });
 
-  it("updates output placeholder text on run without executing JavaScript", async () => {
+  it("renders runtime output for the executed code block", async () => {
     const user = userEvent.setup();
     renderEditor();
 
     await user.click(screen.getByRole("button", { name: "Run blk_prepare_data" }));
 
+    expect(bridgeRunMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: "run-current",
+        targetBlockId: "blk_prepare_data",
+        blocks: [
+          {
+            blockId: "blk_prepare_data",
+            source: expect.any(String),
+          },
+        ],
+      }),
+      expect.any(Object),
+    );
+    expect(screen.getByText("blk_prepare_data:1")).toBeInTheDocument();
+  });
+
+  it("runs all code blocks in notebook order and skips text blocks", async () => {
+    const user = userEvent.setup();
+    renderEditor();
+
+    await user.click(screen.getByRole("button", { name: "Run all" }));
+
+    expect(bridgeRunMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: "run-all",
+        targetBlockId: "blk_prepare_data",
+        blocks: [
+          {
+            blockId: "blk_prepare_data",
+            source: expect.any(String),
+          },
+          {
+            blockId: "blk_summarize",
+            source: expect.any(String),
+          },
+        ],
+      }),
+      expect.any(Object),
+    );
+    expect(screen.getByText("blk_prepare_data:1")).toBeInTheDocument();
+    expect(screen.getByText("blk_summarize:2")).toBeInTheDocument();
+  });
+
+  it("runs from the selected code block through lower code blocks only", async () => {
+    const user = userEvent.setup();
+    renderEditor();
+
+    await user.click(
+      screen.getByRole("button", { name: "Run from here blk_prepare_data" }),
+    );
+
+    expect(bridgeRunMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: "run-from-here",
+        targetBlockId: "blk_prepare_data",
+        blocks: [
+          {
+            blockId: "blk_prepare_data",
+            source: expect.any(String),
+          },
+          {
+            blockId: "blk_summarize",
+            source: expect.any(String),
+          },
+        ],
+      }),
+      expect.any(Object),
+    );
+    expect(screen.getByText("blk_prepare_data:1")).toBeInTheDocument();
+    expect(screen.getByText("blk_summarize:2")).toBeInTheDocument();
+  });
+
+  it("runs only lower code blocks when run from here starts after a text block boundary", async () => {
+    const user = userEvent.setup();
+    renderEditor();
+
+    await user.click(
+      screen.getByRole("button", { name: "Run from here blk_summarize" }),
+    );
+
+    expect(bridgeRunMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: "run-from-here",
+        targetBlockId: "blk_summarize",
+        blocks: [
+          {
+            blockId: "blk_summarize",
+            source: expect.any(String),
+          },
+        ],
+      }),
+      expect.any(Object),
+    );
+    expect(screen.getByText("blk_summarize:1")).toBeInTheDocument();
+  });
+
+  it("reuses the live session for repeated current and downstream runs without upstream replay", async () => {
+    const user = userEvent.setup();
+    let orders: number[] | null = null;
+
+    bridgeRunMock.mockImplementation(
+      async (request: RuntimeExecutionRequest, handlers: BridgeHandlers) => {
+        if (request.command === "run-all") {
+          orders = null;
+        }
+
+        for (const block of request.blocks) {
+          if (block.blockId === "blk_prepare_data") {
+            orders = [48, 126, 74];
+            emitExecutionSuccess(request, handlers, block.blockId, "48,126,74");
+            continue;
+          }
+
+          if (!orders) {
+            handlers.onError({
+              executionId: request.executionId,
+              blockId: block.blockId,
+              error: {
+                kind: "runtime",
+                name: "ReferenceError",
+                message: "orders is not defined",
+              },
+            });
+            return;
+          }
+
+          emitExecutionSuccess(
+            request,
+            handlers,
+            block.blockId,
+            String(orders.reduce((sum, value) => sum + value, 0)),
+          );
+        }
+      },
+    );
+
+    renderEditor();
+
+    await user.click(screen.getByRole("button", { name: "Run blk_prepare_data" }));
+    await user.click(screen.getByRole("button", { name: "Run blk_summarize" }));
+    await user.click(
+      screen.getByRole("button", { name: "Run from here blk_summarize" }),
+    );
+
     expect(
-      screen.getByText(
-        "Run requested. Execution is intentionally out of scope for this task.",
+      bridgeRunMock.mock.calls.map(
+        ([request]: [RuntimeExecutionRequest, BridgeHandlers]) =>
+          request.blocks.map((block) => block.blockId),
       ),
+    ).toEqual([["blk_prepare_data"], ["blk_summarize"], ["blk_summarize"]]);
+    expect(screen.getByText("248")).toBeInTheDocument();
+  });
+
+  it("shows running state, disables conflicting run controls, and enables stop", async () => {
+    const user = userEvent.setup();
+    bridgeRunMock.mockImplementation(async () => new Promise(() => {}));
+    renderEditor();
+
+    await user.click(screen.getByRole("button", { name: "Run blk_prepare_data" }));
+
+    expect(screen.getByText("Execution running")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Run all" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Run blk_summarize" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Run from here blk_summarize" }),
+    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Stop" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Stop blk_prepare_data" })).toBeEnabled();
+    expect(
+      screen.getByLabelText("Execution state for blk_prepare_data"),
+    ).toHaveTextContent("Queued");
+
+    await user.click(screen.getByRole("button", { name: "Run all" }));
+    expect(bridgeRunMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops the active execution and shows canceled state", async () => {
+    vi.useFakeTimers();
+    bridgeRunMock.mockImplementation(async () => new Promise(() => {}));
+    renderEditor();
+
+    fireEvent.click(screen.getByRole("button", { name: "Run blk_prepare_data" }));
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+
+    expect(bridgeStopMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Stopping execution")).toBeInTheDocument();
+
+    act(() => {
+      vi.runAllTimers();
+    });
+
+    expect(
+      screen.getByText("Execution canceled: Execution was canceled"),
     ).toBeInTheDocument();
+    expect(screen.getByText("Execution was canceled")).toBeInTheDocument();
+  });
+
+  it("shows timeout state when the runtime reports a timeout", async () => {
+    const user = userEvent.setup();
+    bridgeRunMock.mockImplementation(
+      async (request: RuntimeExecutionRequest, handlers: BridgeHandlers) => {
+        handlers.onError({
+          executionId: request.executionId,
+          blockId: request.targetBlockId,
+          error: {
+            kind: "timeout",
+            name: "TimeoutError",
+            message: "Execution timed out after 5000ms",
+          },
+        });
+      },
+    );
+    renderEditor();
+
+    await user.click(screen.getByRole("button", { name: "Run blk_prepare_data" }));
+
+    expect(
+      screen.getByText("Execution timed out: Execution timed out after 5000ms"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Execution timed out after 5000ms")).toBeInTheDocument();
+  });
+
+  it("requires setup blocks again after a timeout reset and recovers on rerun", async () => {
+    const user = userEvent.setup();
+    let orders: number[] | null = null;
+    let timeoutNextSummarize = false;
+
+    bridgeRunMock.mockImplementation(
+      async (request: RuntimeExecutionRequest, handlers: BridgeHandlers) => {
+        if (request.command === "run-all") {
+          orders = null;
+        }
+
+        for (const block of request.blocks) {
+          if (block.blockId === "blk_prepare_data") {
+            orders = [48, 126, 74];
+            emitExecutionSuccess(request, handlers, block.blockId, "48,126,74");
+            continue;
+          }
+
+          if (timeoutNextSummarize) {
+            timeoutNextSummarize = false;
+            orders = null;
+            handlers.onError({
+              executionId: request.executionId,
+              blockId: block.blockId,
+              error: {
+                kind: "timeout",
+                name: "TimeoutError",
+                message: "Execution timed out after 5000ms",
+              },
+            });
+            return;
+          }
+
+          if (!orders) {
+            handlers.onError({
+              executionId: request.executionId,
+              blockId: block.blockId,
+              error: {
+                kind: "runtime",
+                name: "ReferenceError",
+                message: "orders is not defined",
+              },
+            });
+            return;
+          }
+
+          emitExecutionSuccess(request, handlers, block.blockId, "248");
+        }
+      },
+    );
+
+    renderEditor();
+
+    await user.click(screen.getByRole("button", { name: "Run blk_prepare_data" }));
+    timeoutNextSummarize = true;
+    await user.click(screen.getByRole("button", { name: "Run blk_summarize" }));
+    expect(
+      screen.getByText("Execution timed out: Execution timed out after 5000ms"),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Run blk_summarize" }));
+    expect(
+      screen.getByText("Execution failed: orders is not defined"),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Run blk_prepare_data" }));
+    await user.click(screen.getByRole("button", { name: "Run blk_summarize" }));
+
+    expect(screen.getByText("Execution idle")).toBeInTheDocument();
+    expect(screen.getByText("248")).toBeInTheDocument();
+  });
+
+  it("shows runtime error state when execution fails", async () => {
+    const user = userEvent.setup();
+    bridgeRunMock.mockImplementation(
+      async (request: RuntimeExecutionRequest, handlers: BridgeHandlers) => {
+        handlers.onError({
+          executionId: request.executionId,
+          blockId: request.targetBlockId,
+          error: {
+            kind: "runtime",
+            name: "ReferenceError",
+            message: "orders is not defined",
+            stack: "ReferenceError: orders is not defined",
+          },
+        });
+      },
+    );
+    renderEditor();
+
+    await user.click(screen.getByRole("button", { name: "Run blk_prepare_data" }));
+
+    expect(
+      screen.getByText("Execution failed: orders is not defined"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("orders is not defined")).toBeInTheDocument();
+  });
+
+  it("keeps the live session valid across runtime and syntax errors", async () => {
+    const user = userEvent.setup();
+    let orders: number[] | null = null;
+    const summarizeFailures = [
+      {
+        kind: "runtime" as const,
+        name: "Error",
+        message: "boom",
+      },
+      {
+        kind: "syntax" as const,
+        name: "SyntaxError",
+        message: "Unexpected token ';'",
+      },
+    ];
+
+    bridgeRunMock.mockImplementation(
+      async (request: RuntimeExecutionRequest, handlers: BridgeHandlers) => {
+        if (request.command === "run-all") {
+          orders = null;
+        }
+
+        for (const block of request.blocks) {
+          if (block.blockId === "blk_prepare_data") {
+            orders = [48, 126, 74];
+            emitExecutionSuccess(request, handlers, block.blockId, "48,126,74");
+            continue;
+          }
+
+          if (!orders) {
+            handlers.onError({
+              executionId: request.executionId,
+              blockId: block.blockId,
+              error: {
+                kind: "runtime",
+                name: "ReferenceError",
+                message: "orders is not defined",
+              },
+            });
+            return;
+          }
+
+          const nextFailure = summarizeFailures.shift();
+          if (nextFailure) {
+            handlers.onError({
+              executionId: request.executionId,
+              blockId: block.blockId,
+              error: nextFailure,
+            });
+            return;
+          }
+
+          emitExecutionSuccess(request, handlers, block.blockId, "248");
+        }
+      },
+    );
+
+    renderEditor();
+
+    await user.click(screen.getByRole("button", { name: "Run blk_prepare_data" }));
+
+    await user.click(screen.getByRole("button", { name: "Run blk_summarize" }));
+    expect(screen.getByText("Execution failed: boom")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Run blk_summarize" }));
+    expect(
+      screen.getByText("Execution failed: Unexpected token ';'"),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Run blk_summarize" }));
+    expect(screen.getByText("Execution idle")).toBeInTheDocument();
+    expect(screen.getByText("248")).toBeInTheDocument();
   });
 
   it("uses route notebook id in the header summary", () => {

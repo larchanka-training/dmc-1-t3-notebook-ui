@@ -44,9 +44,16 @@
 
 **Назначение:** execution lifecycle и output binding.
 
-**Содержит:** session id, status, running target/ids, block outputs, errors, cancellation.
+**Содержит:** active execution id, active execution command, status, running target/ids, block outputs, errors.
 
 Владеет runtime artifacts, не durable notebook state.
+
+Текущее примечание по реализации:
+
+- block outputs хранятся как `Record<blockId, OutputItem[]>`
+- каждый массив outputs принадлежит только latest run соответствующего блока
+- новый run заменяет предыдущий массив затронутого блока, а не дописывает данные в session-wide log
+- во время текущей миграции `executionStore` уже является source of truth для execution lifecycle и outputs
 
 ### `syncStore`
 
@@ -67,6 +74,7 @@
 - blocks — durable editable content
 - outputs — runtime artifacts
 - смена кода блока может инвалидировать outputs, но execution layer не переписывает структуру blocks
+- архитектурно `activeNotebookStore` остается intended editing source of truth, даже если части текущего editor flow еще мигрируют из local hook state
 
 ### `activeNotebookStore` и `syncStore`
 

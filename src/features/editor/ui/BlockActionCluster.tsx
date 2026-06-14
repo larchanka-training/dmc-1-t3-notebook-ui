@@ -13,6 +13,13 @@ type BlockActionClusterProps = {
   isFirst: boolean;
   isLast: boolean;
   actions: BlockActions;
+  executionState: {
+    isRunning: boolean;
+    isTarget: boolean;
+    canRun: boolean;
+    canRunFromHere: boolean;
+    canStop: boolean;
+  };
 };
 
 export function BlockActionCluster({
@@ -20,6 +27,7 @@ export function BlockActionCluster({
   isFirst,
   isLast,
   actions,
+  executionState,
 }: BlockActionClusterProps) {
   return (
     <div
@@ -33,6 +41,7 @@ export function BlockActionCluster({
           size="xs"
           className={cn(editorSecondaryButtonClass, blockActionButtonClass)}
           aria-label={`Add text block above ${block.id}`}
+          disabled={!executionState.canRun}
           onClick={() => actions.addBlockBefore(block.id, "text")}
         >
           + Text ↑
@@ -43,6 +52,7 @@ export function BlockActionCluster({
           size="xs"
           className={cn(editorSecondaryButtonClass, blockActionButtonClass)}
           aria-label={`Add code block above ${block.id}`}
+          disabled={!executionState.canRun}
           onClick={() => actions.addBlockBefore(block.id, "code")}
         >
           + Code ↑
@@ -55,6 +65,7 @@ export function BlockActionCluster({
           size="xs"
           className={cn(editorSecondaryButtonClass, blockActionButtonClass)}
           aria-label={`Add text block below ${block.id}`}
+          disabled={!executionState.canRun}
           onClick={() => actions.addBlockAfter(block.id, "text")}
         >
           + Text ↓
@@ -65,6 +76,7 @@ export function BlockActionCluster({
           size="xs"
           className={cn(editorSecondaryButtonClass, blockActionButtonClass)}
           aria-label={`Add code block below ${block.id}`}
+          disabled={!executionState.canRun}
           onClick={() => actions.addBlockAfter(block.id, "code")}
         >
           + Code ↓
@@ -76,7 +88,7 @@ export function BlockActionCluster({
         size="xs"
         className={cn(editorSecondaryButtonClass, blockActionButtonClass)}
         aria-label={`Move ${block.id} up`}
-        disabled={isFirst}
+        disabled={isFirst || !executionState.canRun}
         onClick={() => actions.moveBlockById(block.id, "up")}
       >
         Up
@@ -87,7 +99,7 @@ export function BlockActionCluster({
         size="xs"
         className={cn(editorSecondaryButtonClass, blockActionButtonClass)}
         aria-label={`Move ${block.id} down`}
-        disabled={isLast}
+        disabled={isLast || !executionState.canRun}
         onClick={() => actions.moveBlockById(block.id, "down")}
       >
         Down
@@ -98,21 +110,55 @@ export function BlockActionCluster({
         size="xs"
         className={cn(editorSecondaryButtonClass, blockActionButtonClass)}
         aria-label={`Delete ${block.id}`}
+        disabled={!executionState.canRun}
         onClick={() => actions.deleteBlockById(block.id)}
       >
         Delete
       </Button>
       {block.type === "code" ? (
-        <Button
-          type="button"
-          variant="outline"
-          size="xs"
-          className={cn(editorRunButtonClass, blockActionButtonClass)}
-          aria-label={`Run ${block.id}`}
-          onClick={() => actions.runBlock(block.id)}
-        >
-          Run
-        </Button>
+        <>
+          {executionState.isRunning || executionState.isTarget ? (
+            <span
+              className="inline-flex min-h-8 items-center rounded-md border border-border-token/80 bg-surface px-2 text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-ink-muted"
+              aria-label={`Execution state for ${block.id}`}
+            >
+              {executionState.isRunning ? "Running" : "Queued"}
+            </span>
+          ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            className={cn(editorRunButtonClass, blockActionButtonClass)}
+            aria-label={`Run ${block.id}`}
+            disabled={!executionState.canRun}
+            onClick={() => actions.runBlock(block.id)}
+          >
+            Run
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            className={cn(editorRunButtonClass, blockActionButtonClass)}
+            aria-label={`Run from here ${block.id}`}
+            disabled={!executionState.canRunFromHere}
+            onClick={() => actions.runFromHere(block.id)}
+          >
+            From here
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            className={cn(editorRunButtonClass, blockActionButtonClass)}
+            aria-label={`Stop ${block.id}`}
+            disabled={!executionState.canStop}
+            onClick={() => actions.stopExecution()}
+          >
+            Stop
+          </Button>
+        </>
       ) : null}
     </div>
   );

@@ -1,0 +1,16 @@
+{
+  /**
+   * TypeScript config for the test layer.
+   * Extends the production tsconfig and adds type declarations for:
+   *   - Vitest globals (describe, it, expect, vi, …)
+   *   - @testing-library/jest-dom matchers (toBeInTheDocument, toHaveValue, …)
+   *
+   * Use this config in editor settings or for standalone type-checking of
+   * the test tree: tsc --project tsconfig.vitest.json --noEmit
+   */
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "types": ["vitest/globals", "@testing-library/jest-dom"]
+  },
+  "include": ["src", "test", "vitest.config.ts"]
+}
