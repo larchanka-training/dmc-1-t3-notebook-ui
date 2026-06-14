@@ -46,12 +46,14 @@ export function useNotebookEditor(notebookId: string | null) {
   const completeBlockExecution = useAppStore((state) => state.completeBlockExecution);
   const recordExecutionError = useAppStore((state) => state.recordExecutionError);
   const disposeExecutionSession = useAppStore((state) => state.disposeExecutionSession);
-  const stopExecution = useAppStore((state) => state.stopExecution);
+  const markExecutionStopping = useAppStore((state) => state.markExecutionStopping);
 
   useEffect(() => {
     setNotebook(notebookForRoute(notebookId));
     setNextBlockNumber(1);
     nextExecutionNumberRef.current = 1;
+    // Dispose worker bridge (side effect) before resetting slice state.
+    notebookWorkerBridge.dispose();
     disposeExecutionSession();
   }, [disposeExecutionSession, notebookId]);
 
@@ -209,7 +211,14 @@ export function useNotebookEditor(notebookId: string | null) {
       runCodeBlocks("run-from-here", blocks, blockId);
     },
     stopExecution: () => {
-      stopExecution();
+      const { activeExecutionId, status, targetBlockId } = execution;
+      if (!activeExecutionId || status !== "running") {
+        return;
+      }
+      // Stop the worker bridge first (side effect lives here, not in the slice).
+      notebookWorkerBridge.stop(activeExecutionId);
+      // Then update slice state + schedule the canceled error.
+      markExecutionStopping(activeExecutionId, targetBlockId);
     },
     updateText: (blockId, markdown) => {
       setNotebook((currentNotebook) => ({

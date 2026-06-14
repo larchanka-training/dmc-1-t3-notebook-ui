@@ -124,14 +124,19 @@ Add real providers (Router, Query Client, Zustand boundary, Theme) to `renderWit
 ```ts
 // test/msw/handlers/notebooks.ts
 import { http, HttpResponse } from "msw";
+import { TEST_API_BASE } from "./auth"; // absolute base URL from VITE_API_BASE_URL
 export const notebookHandlers = [
-  http.get("/api/v1/notebooks", () => HttpResponse.json({ notebooks: [] })),
+  http.get(`${TEST_API_BASE}/notebooks`, () => HttpResponse.json({ notebooks: [] })),
 ];
 
 // test/msw/handlers.ts  — import and spread:
 import { notebookHandlers } from "./handlers/notebooks";
 export const handlers = [...authHandlers, ...notebookHandlers];
 ```
+
+> **Important:** always use `TEST_API_BASE` (exported from `test/msw/handlers/auth.ts`) for
+> handler URLs. MSW node transport matches **exact URLs** — a relative path like
+> `"/api/v1/notebooks"` will never match `http://localhost:8000/api/v1/notebooks`.
 
 ### Artifacts
 

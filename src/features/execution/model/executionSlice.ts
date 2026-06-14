@@ -1,5 +1,4 @@
 import type { StateCreator } from "zustand";
-import { notebookWorkerBridge } from "../lib/notebookWorkerBridge";
 import {
   initialExecutionState,
   type ExecutionOutput,
@@ -159,35 +158,41 @@ export const createExecutionSlice: StateCreator<
         execution: initialExecutionState,
       });
     },
-    stopExecution: () => {
-      const { activeExecutionId, status, targetBlockId } = get().execution;
+    markExecutionStopping: (executionId, targetBlockId) => {
+      set((state) => {
+        if (!isActiveExecution(state.execution.activeExecutionId, executionId)) {
+          return state;
+        }
 
-      if (!activeExecutionId || status !== "running") {
-        return;
-      }
-
-      set((state) => ({
-        execution: {
-          ...state.execution,
-          status: "stopping",
-        },
-      }));
-
-      notebookWorkerBridge.stop(activeExecutionId);
-      setTimeout(() => {
-        get().recordExecutionError(
-          activeExecutionId,
-          {
-            kind: "canceled",
-            name: "CanceledError",
-            message: "Execution was canceled",
+        return {
+          execution: {
+            ...state.execution,
+            status: "stopping" as const,
           },
-          targetBlockId ?? undefined,
-        );
-      }, 0);
+        };
+      });
+
+      // Schedule canceled error after the current microtask so the UI can
+      // react to 'stopping' status first. This stays in the slice because it
+      // only calls other slice actions — no runtime side effects.
+      const { activeExecutionId } = get().execution;
+      if (activeExecutionId === executionId) {
+        setTimeout(() => {
+          get().recordExecutionError(
+            executionId,
+            {
+              kind: "canceled",
+              name: "CanceledError",
+              message: "Execution was canceled",
+            },
+            targetBlockId ?? undefined,
+          );
+        }, 0);
+      }
     },
     disposeExecutionSession: () => {
-      notebookWorkerBridge.dispose();
+      // Worker bridge disposal is the caller's responsibility.
+      // This action resets slice state only.
       set({
         execution: initialExecutionState,
       });
