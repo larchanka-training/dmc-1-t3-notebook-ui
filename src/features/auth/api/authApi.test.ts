@@ -1,6 +1,7 @@
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 import { ApiError } from "@/shared/api";
+import { TEST_API_BASE } from "@test/msw/handlers/auth";
 import { server } from "@test/msw/server";
 import { getSession, requestOtp, verifyOtp } from "./authApi";
 
@@ -24,7 +25,7 @@ describe("authApi", () => {
 
   it("throws ApiError when response shape is invalid", async () => {
     server.use(
-      http.get("/api/v1/auth/session", () =>
+      http.get(`${TEST_API_BASE}/auth/session`, () =>
         HttpResponse.json({ authenticated: true, user: { id: "", email: "" } }),
       ),
     );

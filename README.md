@@ -72,6 +72,99 @@ Git hooks ([Husky](https://typicode.github.io/husky/)): after `pnpm install`, `p
 
 Add shadcn components: `pnpm dlx shadcn@latest add <component>` (see [`docs/libs.md`](./docs/libs.md)).
 
+---
+
+## Tests
+
+> Spec: `docs/prompts/QA-Preparing-component-test-infrastructure-UI.md` — `QA-UI-COMPONENT-TEST-INFRA`
+
+### Commands
+
+| Command              | What it does                                   |
+| -------------------- | ---------------------------------------------- |
+| `pnpm test`          | Run all tests once (Vitest, non-watch)         |
+| `pnpm test:watch`    | Vitest in interactive watch mode (development) |
+| `pnpm test:coverage` | Run tests + generate v8 coverage report        |
+
+### File convention
+
+Colocate test files **next to the source they test**:
+
+```text
+src/features/auth/ui/LoginForm.tsx
+src/features/auth/ui/LoginForm.test.tsx   ← colocated
+```
+
+Accepted patterns: `*.test.ts`, `*.test.tsx`, `*.spec.ts`, `*.spec.tsx`.
+No per-test setup file is needed — `test/setup.ts` is auto-loaded by Vitest.
+
+### Rendering components
+
+Import `render` from the central wrapper so all tests use the same provider tree:
+
+```tsx
+import { render, screen } from "@test/render";
+
+it("renders the notebook title", () => {
+  render(<NotebookTitle title="My notebook" />);
+  expect(screen.getByText("My notebook")).toBeInTheDocument();
+});
+```
+
+The wrapper lives in `test/render.tsx` → `test/renderWithProviders.tsx`.  
+Add real providers (Router, Query Client, Zustand boundary, Theme) to `renderWithProviders.tsx` as they are introduced.
+
+### Adding an MSW network handler
+
+1. Open `test/msw/handlers.ts` (the aggregation point).
+2. Add a new handler file under `test/msw/handlers/` (e.g. `notebooks.ts`).
+3. Import and spread it into the `handlers` array in `handlers.ts`.
+4. For a one-off per-test override, use `server.use(...)` inside the test — it is reset automatically by `afterEach`.
+
+```ts
+// test/msw/handlers/notebooks.ts
+import { http, HttpResponse } from "msw";
+export const notebookHandlers = [
+  http.get("/api/v1/notebooks", () => HttpResponse.json({ notebooks: [] })),
+];
+
+// test/msw/handlers.ts  — import and spread:
+import { notebookHandlers } from "./handlers/notebooks";
+export const handlers = [...authHandlers, ...notebookHandlers];
+```
+
+### Artifacts
+
+| Artifact           | Location                  |
+| ------------------ | ------------------------- |
+| Coverage HTML      | `ui/coverage/index.html`  |
+| Coverage LCOV (CI) | `ui/coverage/lcov.info`   |
+| JUnit XML (CI)     | `ui/reports/junit-ui.xml` |
+
+Both directories are created automatically by Vitest on first run.
+
+### Playwright boundary (E2E)
+
+Component tests run in-process via **jsdom** — no browser needed.  
+End-to-end tests (Playwright) live in the **`e2e/` package** and run separately:
+
+```bash
+# From the monorepo root e2e/ package — not from ui/
+npx playwright test
+```
+
+Vitest never collects `*.e2e.*` files or anything under `e2e/`.  
+`@playwright/test` must not be imported in component test files.
+
+### Environment requirements
+
+- **Node LTS ≥ 20** — required on macOS, Windows, Linux, and AWS/CI.
+- No real browser needed — jsdom provides the DOM environment in-process.
+- All config paths are POSIX-relative — identical behavior on all OS.
+- For constrained CI runners: `pnpm test -- --pool=forks` disables worker threads if sandbox limits apply.
+
+---
+
 ## Project structure
 
 `src/` follows **Feature-Sliced Design (FSD)** per [`docs/ui_architecture.md`](./docs/ui_architecture.md) §4.
