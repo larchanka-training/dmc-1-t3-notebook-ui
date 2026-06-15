@@ -10,6 +10,8 @@ build/
 .env
 .env.*
 !.env.example
+# Committed test env: non-secret defaults so CI runs without a .env file
+!.env.test
 
 # Logs
 logs/

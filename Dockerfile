@@ -15,8 +15,8 @@ COPY . .
 FROM builder AS build
 
 # Injected at build time by GitHub Actions
-ARG VITE_API_URL
-ENV VITE_API_URL=$VITE_API_URL
+ARG VITE_API_BASE_URL
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 
 RUN pnpm build
 
