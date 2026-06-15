@@ -1,6 +1,9 @@
 import { http, HttpResponse } from "msw";
 
-const API = "/api/v1/auth";
+export const TEST_API_BASE =
+  (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ??
+  "http://localhost:8000/api/v1";
+const API = `${TEST_API_BASE}/auth`;
 
 let lastChallengeId = "otp_ch_test";
 let lastDevOtp = "123456";
