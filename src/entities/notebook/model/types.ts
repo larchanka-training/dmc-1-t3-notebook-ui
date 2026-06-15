@@ -5,6 +5,7 @@ export type NotebookBlock = TextBlock | CodeBlock;
 export type Notebook = {
   id: string;
   title: string;
+  tags?: string[];
   blocks: NotebookBlock[];
   revision: number;
   createdAt: string;
