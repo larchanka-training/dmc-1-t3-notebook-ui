@@ -23,3 +23,4 @@ export {
   createNotebookRepository,
   type NotebookRepository,
 } from "./lib/notebookRepository";
+export { createLocalNotebookRepository } from "./lib/localNotebookRepository";

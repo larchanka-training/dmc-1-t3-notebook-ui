@@ -3,6 +3,7 @@ import { useAppStore } from "@/app/model";
 import {
   type CodeBlock,
   createCodeBlock,
+  createLocalNotebookRepository,
   createTextBlock,
   deleteBlock,
   insertBlockAfter,
@@ -12,12 +13,22 @@ import {
   updateCodeBlockSource,
   updateTextBlockMarkdown,
 } from "@/entities/notebook";
-import type { NotebookBlock } from "@/entities/notebook";
+import type { Notebook, NotebookBlock, NotebookRepository } from "@/entities/notebook";
 import { sampleNotebook } from "@/entities/notebook";
+import { createAutosaver } from "@/shared/lib";
 import type { OutputItem } from "@/entities/output";
 import { notebookWorkerBridge, toRuntimeExecutionRequest } from "@/features/execution";
 import type { ExecutionStatus } from "@/features/execution";
 import type { BlockActions } from "./types";
+
+/** Debounce window for notebook autosave (ms). */
+export const NOTEBOOK_AUTOSAVE_DELAY_MS = 800;
+
+const defaultNotebookRepository = createLocalNotebookRepository();
+
+type UseNotebookEditorOptions = {
+  repository?: NotebookRepository;
+};
 
 function notebookForRoute(notebookId: string | null) {
   if (!notebookId) {
@@ -34,10 +45,22 @@ function notebookForRoute(notebookId: string | null) {
   };
 }
 
-export function useNotebookEditor(notebookId: string | null) {
+export function useNotebookEditor(
+  notebookId: string | null,
+  options: UseNotebookEditorOptions = {},
+) {
   const [notebook, setNotebook] = useState(() => notebookForRoute(notebookId));
   const [nextBlockNumber, setNextBlockNumber] = useState(1);
   const nextExecutionNumberRef = useRef(1);
+  const repositoryRef = useRef<NotebookRepository>(
+    options.repository ?? defaultNotebookRepository,
+  );
+  const autosaverRef = useRef(
+    createAutosaver<Notebook>({
+      save: (value) => repositoryRef.current.save(value),
+      delayMs: NOTEBOOK_AUTOSAVE_DELAY_MS,
+    }),
+  );
   const execution = useAppStore((state) => state.execution);
   const startExecution = useAppStore((state) => state.startExecution);
   const markBlockRunning = useAppStore((state) => state.markBlockRunning);
@@ -48,12 +71,43 @@ export function useNotebookEditor(notebookId: string | null) {
   const disposeExecutionSession = useAppStore((state) => state.disposeExecutionSession);
   const stopExecution = useAppStore((state) => state.stopExecution);
 
+  const editedSinceLoadRef = useRef(false);
+
   useEffect(() => {
-    setNotebook(notebookForRoute(notebookId));
+    let cancelled = false;
+    editedSinceLoadRef.current = false;
+    autosaverRef.current.cancel();
     setNextBlockNumber(1);
     nextExecutionNumberRef.current = 1;
     disposeExecutionSession();
+    // Seed synchronously so a route change shows the right notebook at once.
+    setNotebook(notebookForRoute(notebookId));
+
+    void repositoryRef.current
+      .load(notebookId ?? sampleNotebook.id)
+      .then((restored) => {
+        // Apply the persisted notebook only if one exists and the user has not
+        // started editing the freshly seeded one (avoids clobbering edits).
+        if (!cancelled && restored && !editedSinceLoadRef.current) {
+          setNotebook(restored);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [disposeExecutionSession, notebookId]);
+
+  // Apply an edit and schedule a debounced autosave of the resulting notebook.
+  // Only real edits go through here, so loading/seeding never triggers a save.
+  const applyNotebookChange = (updater: (current: Notebook) => Notebook) => {
+    editedSinceLoadRef.current = true;
+    setNotebook((current) => {
+      const next = updater(current);
+      autosaverRef.current.schedule(next);
+      return next;
+    });
+  };
 
   const createBlockId = (type: NotebookBlock["type"]) => {
     const blockId = `blk_new_${type}_${nextBlockNumber}`;
@@ -71,7 +125,7 @@ export function useNotebookEditor(notebookId: string | null) {
       type === "text" ? createTextBlock(newBlockId) : createCodeBlock(newBlockId);
     const insert = position === "before" ? insertBlockBefore : insertBlockAfter;
 
-    setNotebook((currentNotebook) => ({
+    applyNotebookChange((currentNotebook) => ({
       ...currentNotebook,
       blocks: insert(currentNotebook.blocks, blockId, newBlock),
     }));
@@ -172,13 +226,13 @@ export function useNotebookEditor(notebookId: string | null) {
     addBlockBefore: (blockId, type) => insertBlock(blockId, type, "before"),
     addBlockAfter: (blockId, type) => insertBlock(blockId, type, "after"),
     deleteBlockById: (blockId) => {
-      setNotebook((currentNotebook) => ({
+      applyNotebookChange((currentNotebook) => ({
         ...currentNotebook,
         blocks: deleteBlock(currentNotebook.blocks, blockId),
       }));
     },
     moveBlockById: (blockId, direction) => {
-      setNotebook((currentNotebook) => ({
+      applyNotebookChange((currentNotebook) => ({
         ...currentNotebook,
         blocks: moveBlock(currentNotebook.blocks, blockId, direction),
       }));
@@ -212,13 +266,13 @@ export function useNotebookEditor(notebookId: string | null) {
       stopExecution();
     },
     updateText: (blockId, markdown) => {
-      setNotebook((currentNotebook) => ({
+      applyNotebookChange((currentNotebook) => ({
         ...currentNotebook,
         blocks: updateTextBlockMarkdown(currentNotebook.blocks, blockId, markdown),
       }));
     },
     updateCode: (blockId, source) => {
-      setNotebook((currentNotebook) => ({
+      applyNotebookChange((currentNotebook) => ({
         ...currentNotebook,
         blocks: updateCodeBlockSource(currentNotebook.blocks, blockId, source),
       }));
