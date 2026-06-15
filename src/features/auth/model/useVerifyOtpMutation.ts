@@ -25,7 +25,10 @@ export function useVerifyOtpMutation() {
     onSuccess: (data) => {
       const { user: authUser, authenticatedAt } = authFromVerifyResponse(data);
       setAuthUser(authUser, authenticatedAt);
-      void queryClient.invalidateQueries({ queryKey: authQueryKeys.session });
+      queryClient.setQueryData(authQueryKeys.session, {
+        authenticated: true,
+        user: authUser,
+      });
       navigate("/notebooks", { replace: true });
     },
     onError: (err) => setAuthStatus("error", mapAuthError(err)),
