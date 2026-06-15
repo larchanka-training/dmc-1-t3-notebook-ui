@@ -154,12 +154,16 @@ Response:
 {
   "id": "nb_123",
   "title": "Example notebook",
+  "tags": ["reference", "demo"],
   "blocks": [
     {
       "id": "blk_1",
       "type": "text",
       "content": {
         "markdown": "# Title"
+      },
+      "meta": {
+        "tags": ["intro", "summary"]
       }
     }
   ],
@@ -181,12 +185,16 @@ Request:
   "notebook": {
     "id": "nb_123",
     "title": "Example notebook",
+    "tags": ["reference", "demo"],
     "blocks": [
       {
         "id": "blk_1",
         "type": "text",
         "content": {
           "markdown": "# Updated title"
+        },
+        "meta": {
+          "tags": ["intro", "summary"]
         }
       }
     ]
@@ -213,6 +221,7 @@ Conflict response:
   "serverNotebook": {
     "id": "nb_123",
     "title": "Server version",
+    "tags": ["reference", "server"],
     "blocks": []
   }
 }
