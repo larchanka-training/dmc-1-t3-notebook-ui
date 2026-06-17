@@ -147,6 +147,11 @@ export interface ExecutionSlice {
   ) => void;
   completeBlockExecution: (executionId: string, blockId: string) => void;
   resetExecutionState: () => void;
-  stopExecution: () => void;
+  /**
+   * Marks execution as stopping. Does NOT call the worker bridge.
+   * The orchestrator (useNotebookEditor) is responsible for calling
+   * notebookWorkerBridge.stop() and scheduling recordExecutionError.
+   */
+  markExecutionStopping: (executionId: string, targetBlockId: string | null) => void;
   disposeExecutionSession: () => void;
 }

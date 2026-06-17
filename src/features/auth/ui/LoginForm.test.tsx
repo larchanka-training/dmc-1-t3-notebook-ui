@@ -3,6 +3,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
+import { TEST_API_BASE } from "@test/msw/handlers/auth";
 import { server } from "@test/msw/server";
 import { useAppStore } from "@/app/model";
 import { renderWithProviders } from "@test/renderWithProviders";
@@ -44,7 +45,7 @@ describe("LoginForm — request step", () => {
     });
 
     server.use(
-      http.post("/api/v1/auth/request-otp", () =>
+      http.post(`${TEST_API_BASE}/auth/request-otp`, () =>
         HttpResponse.json(
           {
             error: {
@@ -75,7 +76,7 @@ describe("LoginForm — request step", () => {
       screen.getByRole("button", { name: /continue with google/i }),
     );
 
-    expect(assign).toHaveBeenCalledWith("/api/v1/auth/google/start");
+    expect(assign).toHaveBeenCalledWith(`${TEST_API_BASE}/auth/google/start`);
     vi.unstubAllGlobals();
   });
 });
