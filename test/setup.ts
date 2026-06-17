@@ -1,4 +1,7 @@
+// Must run before Dexie initializes so it captures the IndexedDB API (ADR-002).
+import "fake-indexeddb/auto";
 import "@testing-library/jest-dom/vitest";
+import Dexie from "dexie";
 import { afterAll, afterEach, beforeAll } from "vitest";
 import { cleanup } from "@testing-library/react";
 import { useAppStore } from "@/app/model";
@@ -53,11 +56,23 @@ afterAll(() => server.close());
 // Reset the shared Zustand singleton between tests so suites stay isolated.
 const initialStoreState = useAppStore.getInitialState();
 
-afterEach(() => {
+// Drop any IndexedDB databases between tests so notebook persistence (Dexie)
+// cannot leak state across test cases. Dexie.delete closes open connections.
+async function clearIndexedDb() {
+  const databases = (await globalThis.indexedDB.databases?.()) ?? [];
+  await Promise.all(
+    databases.map((database) =>
+      database.name ? Dexie.delete(database.name) : Promise.resolve(),
+    ),
+  );
+}
+
+afterEach(async () => {
   server.resetHandlers();
   resetAuthMockState();
   queryClient.clear();
   cleanup();
   globalThis.localStorage.clear();
   useAppStore.setState(initialStoreState, true);
+  await clearIndexedDb();
 });
