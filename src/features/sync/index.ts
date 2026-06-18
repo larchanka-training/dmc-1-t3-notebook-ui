@@ -6,3 +6,8 @@ export {
   getServerNotebook,
   listServerNotebooks,
 } from "./api/notebookSyncApi";
+export {
+  syncNotebook,
+  fetchServerVersion,
+  adoptServerVersion,
+} from "./model/syncEngine";
