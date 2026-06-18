@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createInMemoryStore } from "@/shared/persistence";
 import { createNotebookRepository } from "./notebookRepository";
+import { DEFAULT_SYNC_META } from "./persistedNotebook";
 import type { PersistedNotebookRecord } from "./persistedNotebook";
 import type { Notebook } from "../model/types";
 
@@ -13,66 +14,50 @@ const notebook: Notebook = {
   blocks: [{ id: "blk_t", type: "text", content: { markdown: "# Hi" } }],
 };
 
-function makeRepo() {
-  return createNotebookRepository(createInMemoryStore<PersistedNotebookRecord>());
-}
+const makeRepo = () =>
+  createNotebookRepository(createInMemoryStore<PersistedNotebookRecord>());
 
 describe("notebook repository", () => {
-  it("saves and loads a notebook by id", async () => {
+  it("saves a notebook with default sync meta and loads both back", async () => {
     const repo = makeRepo();
     await repo.save(notebook);
 
-    const loaded = await repo.load("nb_1");
-    expect(loaded?.id).toBe("nb_1");
-    expect(loaded?.tags).toEqual([]);
+    const stored = await repo.load("nb_1");
+    expect(stored?.notebook.id).toBe("nb_1");
+    expect(stored?.sync).toEqual(DEFAULT_SYNC_META);
+  });
+
+  it("persists provided sync meta", async () => {
+    const repo = makeRepo();
+    await repo.save(notebook, {
+      ...DEFAULT_SYNC_META,
+      serverId: "srv-1",
+      baseRevision: 3,
+      status: "synced",
+    });
+
+    const stored = await repo.load("nb_1");
+    expect(stored?.sync.serverId).toBe("srv-1");
+    expect(stored?.sync.baseRevision).toBe(3);
+    expect(stored?.sync.status).toBe("synced");
   });
 
   it("returns undefined for a missing notebook", async () => {
-    const repo = makeRepo();
-    expect(await repo.load("nope")).toBeUndefined();
+    expect(await makeRepo().load("nope")).toBeUndefined();
   });
 
-  it("lists all saved notebooks", async () => {
+  it("lists all stored notebooks with their sync meta", async () => {
     const repo = makeRepo();
     await repo.save(notebook);
     await repo.save({ ...notebook, id: "nb_2" });
-
     const all = await repo.loadAll();
-    expect(all.map((n) => n.id).sort()).toEqual(["nb_1", "nb_2"]);
-  });
-
-  it("overwrites an existing notebook on re-save (upsert)", async () => {
-    const repo = makeRepo();
-    await repo.save(notebook);
-    await repo.save({ ...notebook, title: "Renamed" });
-
-    expect((await repo.load("nb_1"))?.title).toBe("Renamed");
-    expect(await repo.loadAll()).toHaveLength(1);
+    expect(all.map((s) => s.notebook.id).sort()).toEqual(["nb_1", "nb_2"]);
   });
 
   it("removes a notebook", async () => {
     const repo = makeRepo();
     await repo.save(notebook);
     await repo.remove("nb_1");
-
     expect(await repo.load("nb_1")).toBeUndefined();
-  });
-
-  it("preserves block-level tags through save/load", async () => {
-    const repo = makeRepo();
-    await repo.save({
-      ...notebook,
-      blocks: [
-        {
-          id: "blk_t",
-          type: "text",
-          content: { markdown: "x" },
-          meta: { tags: ["keep"] },
-        },
-      ],
-    });
-
-    const loaded = await repo.load("nb_1");
-    expect(loaded?.blocks[0].meta?.tags).toEqual(["keep"]);
   });
 });

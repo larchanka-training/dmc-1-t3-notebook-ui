@@ -65,7 +65,7 @@ describe("useNotebookEditor persistence", () => {
     });
 
     const loaded = await repository.load(sampleNotebook.id);
-    const saved = loaded?.blocks.find((block) => block.id === codeBlock.id);
+    const saved = loaded?.notebook.blocks.find((block) => block.id === codeBlock.id);
     expect(saved && saved.type === "code" ? saved.content.source : "").toBe(
       "const persisted = 1;",
     );

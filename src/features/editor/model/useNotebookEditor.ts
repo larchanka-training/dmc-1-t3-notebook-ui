@@ -91,7 +91,7 @@ export function useNotebookEditor(
         // Apply the persisted notebook only if one exists and the user has not
         // started editing the freshly seeded one (avoids clobbering edits).
         if (!cancelled && restored && !editedSinceLoadRef.current) {
-          setNotebook(restored);
+          setNotebook(restored.notebook);
         }
       });
 
