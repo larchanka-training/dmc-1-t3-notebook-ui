@@ -55,4 +55,56 @@ describe("useNotebookEditor sync", () => {
     const stored = await repository.load(sampleNotebook.id);
     expect(stored?.sync.serverId).toBe("srv-1");
   });
+
+  it("edit during in-flight sync leaves status unsynced and keeps the latest content", async () => {
+    const repository = makeRepo();
+    let resolveSync!: (meta: Awaited<ReturnType<typeof engine.syncNotebook>>) => void;
+    vi.spyOn(engine, "syncNotebook").mockReturnValue(
+      new Promise((resolve) => {
+        resolveSync = resolve;
+      }),
+    );
+
+    const { result } = renderHook(() =>
+      useNotebookEditor(sampleNotebook.id, { repository }),
+    );
+    await flush();
+
+    // Start the sync but do not await it yet.
+    let syncPromise!: Promise<void>;
+    act(() => {
+      syncPromise = result.current.requestSync();
+    });
+
+    // Edit while the sync is in flight.
+    const editedMarkdown = "# Edited mid-flight";
+    act(() => {
+      result.current.actions.updateText("blk_intro", editedMarkdown);
+    });
+
+    // Resolve the in-flight sync with a successful (synced) meta.
+    await act(async () => {
+      resolveSync({
+        serverId: "srv-2",
+        baseRevision: 1,
+        status: "synced",
+        serverRevision: null,
+        lastSyncedAt: "2026-06-18T11:00:00.000Z",
+        lastError: null,
+      });
+      await syncPromise;
+    });
+    await flush();
+
+    expect(result.current.syncStatus).toBe("unsynced");
+
+    const stored = await repository.load(sampleNotebook.id);
+    const introBlock = stored?.notebook.blocks.find(
+      (block) => block.id === "blk_intro",
+    );
+    expect(introBlock?.type).toBe("text");
+    expect(introBlock?.type === "text" ? introBlock.content.markdown : null).toBe(
+      editedMarkdown,
+    );
+  });
 });

@@ -53,6 +53,12 @@ export function useNotebookEditor(
 ) {
   const [notebook, setNotebook] = useState(() => notebookForRoute(notebookId));
   const [syncMeta, setSyncMeta] = useState<NotebookSyncMeta>(DEFAULT_SYNC_META);
+  // Keep the latest notebook in a ref so an in-flight sync persists the most
+  // recent content (not a stale closure capture) once it resolves.
+  const notebookRef = useRef(notebook);
+  // Flags that the user edited the notebook while a sync was in flight, so the
+  // resolved "synced" status must be downgraded to "unsynced".
+  const dirtyDuringSyncRef = useRef(false);
   const [nextBlockNumber, setNextBlockNumber] = useState(1);
   const nextExecutionNumberRef = useRef(1);
   const repositoryRef = useRef<NotebookRepository>(
@@ -84,6 +90,10 @@ export function useNotebookEditor(
   useEffect(() => {
     syncMetaRef.current = syncMeta;
   }, [syncMeta]);
+
+  useEffect(() => {
+    notebookRef.current = notebook;
+  }, [notebook]);
 
   useEffect(() => {
     let cancelled = false;
@@ -118,6 +128,9 @@ export function useNotebookEditor(
   // Only real edits go through here, so loading/seeding never triggers a save.
   const applyNotebookChange = (updater: (current: Notebook) => Notebook) => {
     editedSinceLoadRef.current = true;
+    if (syncMetaRef.current.status === "syncing") {
+      dirtyDuringSyncRef.current = true;
+    }
     setSyncMeta((m) => (m.status === "synced" ? { ...m, status: "unsynced" } : m));
     setNotebook((current) => {
       const next = updater(current);
@@ -352,13 +365,20 @@ export function useNotebookEditor(
     execution.outputs[blockId];
 
   const requestSync = async () => {
+    dirtyDuringSyncRef.current = false;
     setSyncMeta((m) => ({ ...m, status: "syncing" }));
-    const next = await syncNotebook(notebook, {
+    const next = await syncNotebook(notebookRef.current, {
       ...syncMetaRef.current,
       status: "syncing",
     });
-    setSyncMeta(next);
-    await repositoryRef.current.save(notebook, next);
+    // If the user edited the notebook while the sync was in flight, the local
+    // copy diverges from what was pushed: downgrade "synced" to "unsynced".
+    const resolved =
+      next.status === "synced" && dirtyDuringSyncRef.current
+        ? { ...next, status: "unsynced" as const }
+        : next;
+    setSyncMeta(resolved);
+    await repositoryRef.current.save(notebookRef.current, resolved);
   };
 
   const replaceLocalWithServer = async () => {
