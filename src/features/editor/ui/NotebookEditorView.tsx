@@ -1,12 +1,17 @@
 import { useNotebookEditor } from "../model/useNotebookEditor";
+import type { NotebookBlockRender } from "../model/types";
 import { NotebookBlockView } from "./NotebookBlockView";
 import { NotebookEditorToolbar } from "./NotebookEditorToolbar";
 
 type NotebookEditorViewProps = {
   notebookId: string | null;
+  renderBlockActionSupplement?: NotebookBlockRender;
 };
 
-export function NotebookEditorView({ notebookId }: NotebookEditorViewProps) {
+export function NotebookEditorView({
+  notebookId,
+  renderBlockActionSupplement,
+}: NotebookEditorViewProps) {
   const {
     notebook,
     actions,
@@ -65,6 +70,13 @@ export function NotebookEditorView({ notebookId }: NotebookEditorViewProps) {
             outputs={getOutputs(block.id)}
             actions={actions}
             executionState={getBlockExecutionState(block.id)}
+            actionSupplement={renderBlockActionSupplement?.({
+              notebook,
+              block,
+              index,
+              blockCount: notebook.blocks.length,
+              actions,
+            })}
           />
         ))}
       </section>

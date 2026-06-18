@@ -1,4 +1,5 @@
 import type { NotebookBlock } from "@/entities/notebook";
+import type { ReactNode } from "react";
 import { Button } from "@/shared/ui";
 import { cn } from "@/shared/lib";
 import {
@@ -20,6 +21,7 @@ type BlockActionClusterProps = {
     canRunFromHere: boolean;
     canStop: boolean;
   };
+  actionSupplement?: ReactNode;
 };
 
 export function BlockActionCluster({
@@ -28,6 +30,7 @@ export function BlockActionCluster({
   isLast,
   actions,
   executionState,
+  actionSupplement,
 }: BlockActionClusterProps) {
   return (
     <div
@@ -115,6 +118,7 @@ export function BlockActionCluster({
       >
         Delete
       </Button>
+      {actionSupplement}
       {block.type === "code" ? (
         <>
           {executionState.isRunning || executionState.isTarget ? (

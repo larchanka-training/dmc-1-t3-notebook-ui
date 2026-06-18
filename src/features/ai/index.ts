@@ -1,1 +1,12 @@
-/** Block-scoped AI feature — UI and API wiring land in a later iteration. */
+export { BlockAiAction } from "./ui/BlockAiAction";
+export { buildAiRequestContext, parseAiSourceText, useBlockAiAction } from "./model";
+export type {
+  AiErrorClass,
+  AiErrorCode,
+  AiRelevantBlock,
+  AiRequestStatus,
+  AiScope,
+  BlockAiActionProps,
+  BlockAiErrorState,
+  BlockAiState,
+} from "./model";

@@ -8,8 +8,10 @@ export {
   insertBlockAfter,
   moveBlock,
   notebookContentBlockIds,
+  resolveGeneratedCodeInsertionTarget,
   updateCodeBlockSource,
   updateTextBlockMarkdown,
+  type GeneratedCodeInsertionTarget,
 } from "./lib/notebookModel";
 export { sampleNotebook } from "./lib/sampleNotebook";
 export {

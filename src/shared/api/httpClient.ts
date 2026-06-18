@@ -1,5 +1,5 @@
 import { getApiBaseUrl } from "./config";
-import { ApiError, isApiErrorBody } from "./errors";
+import { ApiError, isApiErrorBody, toApiErrorDetails } from "./errors";
 
 type HttpMethod = "GET" | "POST";
 
@@ -47,7 +47,11 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   if (!response.ok) {
     if (isApiErrorBody(data)) {
-      throw new ApiError(response.status, data.error.code, data.error.message);
+      const error = toApiErrorDetails(data);
+      throw new ApiError(response.status, error.code, error.message, {
+        retryable: error.retryable,
+        requestId: error.requestId,
+      });
     }
     throw new ApiError(
       response.status,
