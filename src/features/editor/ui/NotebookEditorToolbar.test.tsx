@@ -27,6 +27,7 @@ const noopActions: BlockActions = {
   stopExecution: vi.fn(),
   updateText: vi.fn(),
   updateCode: vi.fn(),
+  applyGeneratedCode: vi.fn(),
 };
 
 const renderToolbar = (
