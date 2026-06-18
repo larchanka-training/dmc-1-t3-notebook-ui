@@ -5,6 +5,7 @@ import {
   insertBlockAfter,
   insertBlockBefore,
   notebookContentBlockIds,
+  resolveGeneratedCodeInsertionTarget,
 } from "./notebookModel";
 import { sampleNotebook } from "./sampleNotebook";
 
@@ -44,5 +45,29 @@ describe("notebook model boundaries", () => {
       "blk_observation",
       "blk_summarize",
     ]);
+  });
+
+  it("reuses the next empty code block for AI-generated code", () => {
+    const blocks = insertBlockAfter(sampleNotebook.blocks, "blk_intro", {
+      id: "blk_empty_code",
+      type: "code",
+      content: {
+        language: "javascript",
+        source: "   ",
+      },
+    });
+
+    expect(resolveGeneratedCodeInsertionTarget(blocks, "blk_intro")).toEqual({
+      kind: "existing-empty-code",
+      blockId: "blk_empty_code",
+    });
+  });
+
+  it("creates a new code block after the source when the next block is not empty code", () => {
+    expect(
+      resolveGeneratedCodeInsertionTarget(sampleNotebook.blocks, "blk_intro"),
+    ).toEqual({
+      kind: "new-after-source",
+    });
   });
 });

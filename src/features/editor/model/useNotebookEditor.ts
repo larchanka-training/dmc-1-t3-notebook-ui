@@ -10,6 +10,7 @@ import {
   insertBlockBefore,
   moveBlock,
   notebookContentBlockIds,
+  resolveGeneratedCodeInsertionTarget,
   updateCodeBlockSource,
   updateTextBlockMarkdown,
 } from "@/entities/notebook";
@@ -159,6 +160,28 @@ export function useNotebookEditor(
       ...currentNotebook,
       blocks: insert(currentNotebook.blocks, blockId, newBlock),
     }));
+  };
+
+  const applyGeneratedCode = (sourceBlockId: string, source: string) => {
+    const target = resolveGeneratedCodeInsertionTarget(notebook.blocks, sourceBlockId);
+
+    if (target.kind === "new-after-source") {
+      const newBlockId = createBlockId("code");
+      const newBlock = createCodeBlock(newBlockId, source);
+
+      applyNotebookChange((currentNotebook) => ({
+        ...currentNotebook,
+        blocks: insertBlockAfter(currentNotebook.blocks, sourceBlockId, newBlock),
+      }));
+      return;
+    }
+
+    applyNotebookChange((currentNotebook) => {
+      return {
+        ...currentNotebook,
+        blocks: updateCodeBlockSource(currentNotebook.blocks, target.blockId, source),
+      };
+    });
   };
 
   const createExecutionId = () => {
@@ -314,6 +337,7 @@ export function useNotebookEditor(
         blocks: updateCodeBlockSource(currentNotebook.blocks, blockId, source),
       }));
     },
+    applyGeneratedCode,
   };
 
   const contentBlockIds = notebookContentBlockIds(notebook);

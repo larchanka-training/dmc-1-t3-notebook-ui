@@ -82,4 +82,74 @@ describe("useNotebookEditor persistence", () => {
 
     expect(saveSpy).not.toHaveBeenCalled();
   });
+
+  it("reuses the next empty code block for AI-generated code insertion", async () => {
+    const repository = makeRepo();
+    const sourceNotebook: Notebook = {
+      ...sampleNotebook,
+      id: "nb_ai_reuse",
+      blocks: [
+        sampleNotebook.blocks[0],
+        sampleNotebook.blocks[1],
+        sampleNotebook.blocks[2],
+        {
+          id: "blk_empty_code",
+          type: "code",
+          content: {
+            language: "javascript",
+            source: "",
+          },
+        },
+        sampleNotebook.blocks[3],
+      ],
+    };
+    await repository.save(sourceNotebook);
+
+    const { result } = renderHook(() =>
+      useNotebookEditor(sourceNotebook.id, { repository }),
+    );
+    await flushEffects();
+
+    act(() => {
+      result.current.actions.applyGeneratedCode(
+        "blk_observation",
+        "const average = total / orders.length;",
+      );
+    });
+
+    const codeBlocks = result.current.notebook.blocks.filter(
+      (block) => block.type === "code",
+    );
+    expect(codeBlocks).toHaveLength(3);
+    const reusedBlock = result.current.notebook.blocks.find(
+      (block) => block.id === "blk_empty_code",
+    );
+    expect(
+      reusedBlock && reusedBlock.type === "code" ? reusedBlock.content.source : "",
+    ).toBe("const average = total / orders.length;");
+  });
+
+  it("creates a new code block after the source text block when reuse is not possible", async () => {
+    const repository = makeRepo();
+    const { result } = renderHook(() =>
+      useNotebookEditor(sampleNotebook.id, { repository }),
+    );
+    await flushEffects();
+
+    act(() => {
+      result.current.actions.applyGeneratedCode(
+        "blk_intro",
+        "function summarizeOrders(orders) { return orders.length; }",
+      );
+    });
+
+    expect(result.current.notebook.blocks[1]).toMatchObject({
+      id: "blk_new_code_1",
+      type: "code",
+      content: {
+        language: "javascript",
+        source: "function summarizeOrders(orders) { return orders.length; }",
+      },
+    });
+  });
 });
