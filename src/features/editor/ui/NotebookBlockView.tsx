@@ -1,4 +1,5 @@
 import type { NotebookBlock } from "@/entities/notebook";
+import type { ReactNode } from "react";
 import { CodeBlockEditor, TextBlockEditor } from "@/entities/block";
 import { OutputView } from "@/entities/output";
 import type { OutputItem } from "@/entities/output";
@@ -20,6 +21,7 @@ type NotebookBlockViewProps = {
     canRunFromHere: boolean;
     canStop: boolean;
   };
+  actionSupplement?: ReactNode;
 };
 
 export function NotebookBlockView({
@@ -29,6 +31,7 @@ export function NotebookBlockView({
   outputs,
   actions,
   executionState,
+  actionSupplement,
 }: NotebookBlockViewProps) {
   return (
     <article
@@ -43,6 +46,7 @@ export function NotebookBlockView({
         isLast={index === blockCount - 1}
         actions={actions}
         executionState={executionState}
+        actionSupplement={actionSupplement}
       />
       <div
         className={cn(

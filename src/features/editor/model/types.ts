@@ -1,4 +1,5 @@
-import type { NotebookBlock } from "@/entities/notebook";
+import type { ReactNode } from "react";
+import type { Notebook, NotebookBlock } from "@/entities/notebook";
 
 export type BlockActions = {
   addBlockBefore: (blockId: string, type: NotebookBlock["type"]) => void;
@@ -11,4 +12,15 @@ export type BlockActions = {
   stopExecution: () => void;
   updateText: (blockId: string, markdown: string) => void;
   updateCode: (blockId: string, source: string) => void;
+  applyGeneratedCode: (sourceBlockId: string, source: string) => void;
 };
+
+export type NotebookBlockRenderArgs = {
+  notebook: Notebook;
+  block: NotebookBlock;
+  index: number;
+  blockCount: number;
+  actions: BlockActions;
+};
+
+export type NotebookBlockRender = (args: NotebookBlockRenderArgs) => ReactNode;
