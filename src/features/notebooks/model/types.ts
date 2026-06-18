@@ -1,14 +1,16 @@
-export interface NotebookSummary {
-  id: string;
-  title: string;
-  updatedAt: string;
-}
+import type { NotebookListItem } from "./mergeNotebookList";
+
+export type { NotebookListItem } from "./mergeNotebookList";
+
+export type NotebookListStatus = "idle" | "loading" | "error";
 
 export interface NotebookListSlice {
   notebookList: {
-    items: NotebookSummary[];
-    status: "idle" | "loading" | "error";
+    items: NotebookListItem[];
+    status: NotebookListStatus;
     error: string | null;
   };
-  createNotebook: (title?: string) => NotebookSummary;
+  setNotebookList: (items: NotebookListItem[]) => void;
+  setNotebookListStatus: (status: NotebookListStatus, error?: string | null) => void;
+  createNotebook: (title?: string) => NotebookListItem;
 }

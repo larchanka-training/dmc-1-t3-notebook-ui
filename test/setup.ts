@@ -7,6 +7,7 @@ import { cleanup } from "@testing-library/react";
 import { useAppStore } from "@/app/model";
 import { queryClient } from "@/app/providers/queryClient";
 import { resetAuthMockState } from "./msw/handlers/auth";
+import { resetNotebooksMockState } from "./msw/handlers/notebooks";
 import { server } from "./msw/server";
 
 // jsdom's AbortSignal is not recognized by Node's undici Request (used by
@@ -70,6 +71,7 @@ async function clearIndexedDb() {
 afterEach(async () => {
   server.resetHandlers();
   resetAuthMockState();
+  resetNotebooksMockState();
   queryClient.clear();
   cleanup();
   globalThis.localStorage.clear();
