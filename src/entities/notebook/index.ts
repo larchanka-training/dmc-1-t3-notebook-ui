@@ -33,3 +33,9 @@ export {
   type NotebookRepository,
 } from "./lib/notebookRepository";
 export { createLocalNotebookRepository } from "./lib/localNotebookRepository";
+export {
+  toServerSnapshot,
+  fromServerNotebook,
+  type ServerNotebook,
+  type ServerNotebookSummary,
+} from "./lib/serverNotebook";
