@@ -28,7 +28,7 @@ The following UI decisions are fixed for Version 1:
 3. Text blocks are edited as `Markdown`.
 4. Code blocks are edited with `CodeMirror`.
 5. The notebook editor uses a vertical document layout.
-6. The AI flow is block-scoped and works only in the context of a selected code block.
+6. The AI flow is block-scoped and uses a selected `text` block as the Version 1 source; revising existing code goes through the documented convert-code-to-text flow first.
 7. The block action cluster is shown near the block and contains:
    - block toolbar trigger
    - AI action
@@ -56,7 +56,7 @@ The frontend application is responsible for:
 - block ordering and block-level actions
 - execution controls and execution feedback
 - output rendering
-- AI prompt entry for a selected code block
+- AI prompt entry for a selected `text` source block and code-revision conversion flow
 - local persistence integration
 - synchronization status and synchronization actions
 
@@ -649,7 +649,7 @@ The cluster contains:
    - move block down
 
 2. `AI action`
-   Opens AI prompt UI for the selected code block.
+   Opens AI prompt UI for the selected eligible source block. In Version 1 the source is a `text` block; revising code first converts the `code` block into a `text` source block.
 
 3. `Run/Stop action`
    Starts execution or stops the running block execution flow when applicable.
@@ -705,14 +705,14 @@ The AI flow is block-scoped.
 
 The frontend AI interaction model is:
 
-1. The user selects a target code block.
+1. The user selects a source `text` block, or explicitly converts a `code` block into a `text` source block for revision.
 2. The user clicks the block AI action.
-3. The frontend opens a prompt input UI for that block.
-4. The user enters a prompt.
-5. The frontend sends the prompt and relevant notebook context through the backend AI endpoint.
+3. The frontend opens a prompt input UI for that source block.
+4. The user enters or edits the request.
+5. The frontend sends the prompt and bounded notebook context through the backend AI endpoint.
 6. The frontend receives generated code.
-7. The frontend inserts the generated code into the selected code block as a proposed update.
-8. The user confirms, edits, or replaces the inserted code.
+7. The frontend inserts the generated code into the next empty `code` block after the source block, or creates a new `code` block there.
+8. The user reviews, edits, or rejects the proposed code.
 
 Version 1 does not include:
 
@@ -891,10 +891,10 @@ Used indirectly through the execution orchestrator for:
 
 ### 17.8 AI Flow
 
-1. The user opens AI UI for a selected code block.
+1. The user opens AI UI for a selected `text` source block, or first converts a `code` block into a `text` source block for revision.
 2. `blockUiStore` tracks prompt visibility and draft prompt state.
 3. The API client sends the AI request.
-4. Returned code is staged as a proposed block update.
+4. Returned code is staged for insertion into the next empty `code` block after the source block, or into a newly created `code` block there.
 5. The user confirms, edits, or rejects the proposal.
 
 ## 18. Error and Empty States

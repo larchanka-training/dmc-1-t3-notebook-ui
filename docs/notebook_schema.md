@@ -222,6 +222,26 @@ Purpose:
 
 `hasUnsyncedChanges` is persisted in IndexedDB per [ADR-007](./adr/ADR-007-unsynced-changes-persistence.md).
 
+## Persisted Local Format (v0)
+
+Notebooks are stored locally in IndexedDB (Dexie, see [ADR-002](./adr/ADR-002-indexeddb-library.md))
+wrapped in a versioned record:
+
+```json
+{
+  "schemaVersion": 0,
+  "notebook": { "id": "nb_123", "title": "…", "tags": [], "blocks": [] }
+}
+```
+
+- `schemaVersion` marks the durable format; `v0` is the current version. Loading
+  passes records through a `migrate` seam so future versions can upgrade in place.
+- On save, notebook-level `tags` and block-level `meta.tags` are normalized to `[]`
+  when absent, so a loaded notebook always exposes both. In the working TypeScript
+  model these fields are optional (`tags?`, `meta?`) and only guaranteed after a
+  persistence round-trip.
+- Runtime outputs are never written to the persisted record.
+
 ## Sync Metadata Schema
 
 Recommended sync metadata:

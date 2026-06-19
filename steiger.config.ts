@@ -39,6 +39,14 @@ export default defineConfig([
       "fsd/no-cross-imports": "off",
     },
   },
+  // notebooks composes the sync public API for the merged list / open-remote flow
+  // (same features→features boundary already allowed for editor→sync above).
+  {
+    files: ["./src/features/notebooks/**"],
+    rules: {
+      "fsd/no-cross-imports": "off",
+    },
+  },
   // Notebook aggregate composes block primitives (entities/notebook → entities/block public API).
   {
     files: ["./src/entities/notebook/**"],

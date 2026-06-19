@@ -95,23 +95,58 @@ export function updateCodeBlockSource(
   );
 }
 
-export function createTextBlock(id: string): NotebookBlock {
+export type GeneratedCodeInsertionTarget =
+  | {
+      kind: "existing-empty-code";
+      blockId: string;
+    }
+  | {
+      kind: "new-after-source";
+    };
+
+export function resolveGeneratedCodeInsertionTarget(
+  blocks: NotebookBlock[],
+  sourceBlockId: string,
+): GeneratedCodeInsertionTarget {
+  const sourceIndex = blocks.findIndex((block) => block.id === sourceBlockId);
+  if (sourceIndex < 0) {
+    return { kind: "new-after-source" };
+  }
+
+  const nextBlock = blocks[sourceIndex + 1];
+  if (nextBlock?.type === "code" && nextBlock.content.source.trim().length === 0) {
+    return {
+      kind: "existing-empty-code",
+      blockId: nextBlock.id,
+    };
+  }
+
+  return { kind: "new-after-source" };
+}
+
+export function createTextBlock(
+  id: string,
+  markdown = "New Markdown note",
+): NotebookBlock {
   return {
     id,
     type: "text",
     content: {
-      markdown: "New Markdown note",
+      markdown,
     },
   };
 }
 
-export function createCodeBlock(id: string): CodeBlock {
+export function createCodeBlock(
+  id: string,
+  source = "console.log('New block');",
+): CodeBlock {
   return {
     id,
     type: "code",
     content: {
       language: "javascript",
-      source: "console.log('New block');",
+      source,
     },
   };
 }

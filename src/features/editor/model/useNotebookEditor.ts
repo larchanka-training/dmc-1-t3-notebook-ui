@@ -3,21 +3,35 @@ import { useAppStore } from "@/app/model";
 import {
   type CodeBlock,
   createCodeBlock,
+  createLocalNotebookRepository,
   createTextBlock,
   deleteBlock,
   insertBlockAfter,
   insertBlockBefore,
   moveBlock,
   notebookContentBlockIds,
+  resolveGeneratedCodeInsertionTarget,
   updateCodeBlockSource,
   updateTextBlockMarkdown,
 } from "@/entities/notebook";
-import type { NotebookBlock } from "@/entities/notebook";
-import { sampleNotebook } from "@/entities/notebook";
+import type { Notebook, NotebookBlock, NotebookRepository } from "@/entities/notebook";
+import { DEFAULT_SYNC_META, sampleNotebook } from "@/entities/notebook";
+import type { NotebookSyncMeta } from "@/entities/notebook";
+import { createAutosaver } from "@/shared/lib";
 import type { OutputItem } from "@/entities/output";
 import { notebookWorkerBridge, toRuntimeExecutionRequest } from "@/features/execution";
 import type { ExecutionStatus } from "@/features/execution";
+import { adoptServerVersion, fetchServerVersion, syncNotebook } from "@/features/sync";
 import type { BlockActions } from "./types";
+
+/** Debounce window for notebook autosave (ms). */
+export const NOTEBOOK_AUTOSAVE_DELAY_MS = 800;
+
+const defaultNotebookRepository = createLocalNotebookRepository();
+
+type UseNotebookEditorOptions = {
+  repository?: NotebookRepository;
+};
 
 function notebookForRoute(notebookId: string | null) {
   if (!notebookId) {
@@ -34,10 +48,32 @@ function notebookForRoute(notebookId: string | null) {
   };
 }
 
-export function useNotebookEditor(notebookId: string | null) {
+export function useNotebookEditor(
+  notebookId: string | null,
+  options: UseNotebookEditorOptions = {},
+) {
   const [notebook, setNotebook] = useState(() => notebookForRoute(notebookId));
+  const [syncMeta, setSyncMeta] = useState<NotebookSyncMeta>(DEFAULT_SYNC_META);
+  // Keep the latest notebook in a ref so an in-flight sync persists the most
+  // recent content (not a stale closure capture) once it resolves.
+  const notebookRef = useRef(notebook);
+  // Flags that the user edited the notebook while a sync was in flight, so the
+  // resolved "synced" status must be downgraded to "unsynced".
+  const dirtyDuringSyncRef = useRef(false);
   const [nextBlockNumber, setNextBlockNumber] = useState(1);
   const nextExecutionNumberRef = useRef(1);
+  const repositoryRef = useRef<NotebookRepository>(
+    options.repository ?? defaultNotebookRepository,
+  );
+  // The autosaver is created once, so it must read the current sync meta from a
+  // ref (kept in sync by an effect) to avoid persisting stale metadata.
+  const syncMetaRef = useRef<NotebookSyncMeta>(syncMeta);
+  const autosaverRef = useRef(
+    createAutosaver<Notebook>({
+      save: (value) => repositoryRef.current.save(value, syncMetaRef.current),
+      delayMs: NOTEBOOK_AUTOSAVE_DELAY_MS,
+    }),
+  );
   const execution = useAppStore((state) => state.execution);
   const startExecution = useAppStore((state) => state.startExecution);
   const markBlockRunning = useAppStore((state) => state.markBlockRunning);
@@ -48,14 +84,61 @@ export function useNotebookEditor(notebookId: string | null) {
   const disposeExecutionSession = useAppStore((state) => state.disposeExecutionSession);
   const markExecutionStopping = useAppStore((state) => state.markExecutionStopping);
 
+  const editedSinceLoadRef = useRef(false);
+
+  // Keep the ref current so the once-created autosaver always persists the
+  // latest sync meta alongside the notebook.
   useEffect(() => {
-    setNotebook(notebookForRoute(notebookId));
+    syncMetaRef.current = syncMeta;
+  }, [syncMeta]);
+
+  useEffect(() => {
+    notebookRef.current = notebook;
+  }, [notebook]);
+
+  useEffect(() => {
+    let cancelled = false;
+    editedSinceLoadRef.current = false;
+    autosaverRef.current.cancel();
     setNextBlockNumber(1);
     nextExecutionNumberRef.current = 1;
     // Dispose worker bridge (side effect) before resetting slice state.
     notebookWorkerBridge.dispose();
     disposeExecutionSession();
+    // Seed synchronously so a route change shows the right notebook at once.
+    setNotebook(notebookForRoute(notebookId));
+    setSyncMeta(DEFAULT_SYNC_META);
+
+    void repositoryRef.current
+      .load(notebookId ?? sampleNotebook.id)
+      .then((restored) => {
+        // Apply the persisted notebook only if one exists and the user has not
+        // started editing the freshly seeded one (avoids clobbering edits).
+        if (!cancelled && restored && !editedSinceLoadRef.current) {
+          setNotebook(restored.notebook);
+          setSyncMeta(restored.sync);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [disposeExecutionSession, notebookId]);
+
+  // Apply an edit and schedule a debounced autosave of the resulting notebook.
+  // Only real edits go through here, so loading/seeding never triggers a save.
+  const applyNotebookChange = (updater: (current: Notebook) => Notebook) => {
+    editedSinceLoadRef.current = true;
+    if (syncMetaRef.current.status === "syncing") {
+      dirtyDuringSyncRef.current = true;
+    }
+    setSyncMeta((m) => (m.status === "synced" ? { ...m, status: "unsynced" } : m));
+    setNotebook((current) => {
+      const next = updater(current);
+      autosaverRef.current.schedule(next);
+      return next;
+    });
+  };
 
   const createBlockId = (type: NotebookBlock["type"]) => {
     const blockId = `blk_new_${type}_${nextBlockNumber}`;
@@ -73,10 +156,32 @@ export function useNotebookEditor(notebookId: string | null) {
       type === "text" ? createTextBlock(newBlockId) : createCodeBlock(newBlockId);
     const insert = position === "before" ? insertBlockBefore : insertBlockAfter;
 
-    setNotebook((currentNotebook) => ({
+    applyNotebookChange((currentNotebook) => ({
       ...currentNotebook,
       blocks: insert(currentNotebook.blocks, blockId, newBlock),
     }));
+  };
+
+  const applyGeneratedCode = (sourceBlockId: string, source: string) => {
+    const target = resolveGeneratedCodeInsertionTarget(notebook.blocks, sourceBlockId);
+
+    if (target.kind === "new-after-source") {
+      const newBlockId = createBlockId("code");
+      const newBlock = createCodeBlock(newBlockId, source);
+
+      applyNotebookChange((currentNotebook) => ({
+        ...currentNotebook,
+        blocks: insertBlockAfter(currentNotebook.blocks, sourceBlockId, newBlock),
+      }));
+      return;
+    }
+
+    applyNotebookChange((currentNotebook) => {
+      return {
+        ...currentNotebook,
+        blocks: updateCodeBlockSource(currentNotebook.blocks, target.blockId, source),
+      };
+    });
   };
 
   const createExecutionId = () => {
@@ -174,13 +279,13 @@ export function useNotebookEditor(notebookId: string | null) {
     addBlockBefore: (blockId, type) => insertBlock(blockId, type, "before"),
     addBlockAfter: (blockId, type) => insertBlock(blockId, type, "after"),
     deleteBlockById: (blockId) => {
-      setNotebook((currentNotebook) => ({
+      applyNotebookChange((currentNotebook) => ({
         ...currentNotebook,
         blocks: deleteBlock(currentNotebook.blocks, blockId),
       }));
     },
     moveBlockById: (blockId, direction) => {
-      setNotebook((currentNotebook) => ({
+      applyNotebookChange((currentNotebook) => ({
         ...currentNotebook,
         blocks: moveBlock(currentNotebook.blocks, blockId, direction),
       }));
@@ -221,17 +326,18 @@ export function useNotebookEditor(notebookId: string | null) {
       markExecutionStopping(activeExecutionId, targetBlockId);
     },
     updateText: (blockId, markdown) => {
-      setNotebook((currentNotebook) => ({
+      applyNotebookChange((currentNotebook) => ({
         ...currentNotebook,
         blocks: updateTextBlockMarkdown(currentNotebook.blocks, blockId, markdown),
       }));
     },
     updateCode: (blockId, source) => {
-      setNotebook((currentNotebook) => ({
+      applyNotebookChange((currentNotebook) => ({
         ...currentNotebook,
         blocks: updateCodeBlockSource(currentNotebook.blocks, blockId, source),
       }));
     },
+    applyGeneratedCode,
   };
 
   const contentBlockIds = notebookContentBlockIds(notebook);
@@ -282,6 +388,41 @@ export function useNotebookEditor(notebookId: string | null) {
   const getOutputs = (blockId: string): OutputItem[] | undefined =>
     execution.outputs[blockId];
 
+  const requestSync = async () => {
+    dirtyDuringSyncRef.current = false;
+    setSyncMeta((m) => ({ ...m, status: "syncing" }));
+    const next = await syncNotebook(notebookRef.current, {
+      ...syncMetaRef.current,
+      status: "syncing",
+    });
+    // If the user edited the notebook while the sync was in flight, the local
+    // copy diverges from what was pushed: downgrade "synced" to "unsynced".
+    const resolved =
+      next.status === "synced" && dirtyDuringSyncRef.current
+        ? { ...next, status: "unsynced" as const }
+        : next;
+    setSyncMeta(resolved);
+    await repositoryRef.current.save(notebookRef.current, resolved);
+  };
+
+  const replaceLocalWithServer = async () => {
+    if (!syncMeta.serverId) {
+      return;
+    }
+    const server = await fetchServerVersion(syncMeta.serverId, notebook.id);
+    const next = adoptServerVersion(
+      syncMeta,
+      server.revision,
+      new Date().toISOString(),
+    );
+    editedSinceLoadRef.current = false;
+    setNotebook(server);
+    setSyncMeta(next);
+    await repositoryRef.current.save(server, next);
+  };
+
+  const keepLocalForLater = () => setSyncMeta((m) => ({ ...m, status: "unsynced" }));
+
   return {
     notebookId,
     notebook,
@@ -299,5 +440,10 @@ export function useNotebookEditor(notebookId: string | null) {
     canStopExecution,
     getBlockExecutionState,
     getOutputs,
+    syncStatus: syncMeta.status,
+    syncMeta,
+    requestSync,
+    replaceLocalWithServer,
+    keepLocalForLater,
   };
 }

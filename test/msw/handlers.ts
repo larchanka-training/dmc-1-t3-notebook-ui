@@ -10,11 +10,11 @@
  *   - Override a specific handler per-test with server.use(http.get(...))
  *
  * TODO: add handler modules as backend endpoints are implemented:
- *   - notebooks CRUD  → ./handlers/notebooks.ts
  *   - sync            → ./handlers/sync.ts
  *   - AI broker       → ./handlers/ai.ts
  */
 import type { RequestHandler } from "msw";
 import { authHandlers } from "./handlers/auth";
+import { notebooksHandlers } from "./handlers/notebooks";
 
-export const handlers: RequestHandler[] = [...authHandlers];
+export const handlers: RequestHandler[] = [...authHandlers, ...notebooksHandlers];
