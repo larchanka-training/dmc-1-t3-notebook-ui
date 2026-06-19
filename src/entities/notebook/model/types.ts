@@ -12,4 +12,25 @@ export type Notebook = {
   updatedAt: string;
 };
 
+export type NotebookSyncStatus =
+  | "unsynced"
+  | "syncing"
+  | "synced"
+  | "conflict"
+  | "error";
+
+export type NotebookSyncMeta = {
+  serverId: string | null;
+  baseRevision: number;
+  status: NotebookSyncStatus;
+  serverRevision: number | null;
+  lastSyncedAt: string | null;
+  lastError: string | null;
+};
+
+export type StoredNotebook = {
+  notebook: Notebook;
+  sync: NotebookSyncMeta;
+};
+
 export type { CodeBlock, TextBlock };

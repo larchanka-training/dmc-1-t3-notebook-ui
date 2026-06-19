@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   CURRENT_NOTEBOOK_SCHEMA_VERSION,
+  DEFAULT_SYNC_META,
   toPersistedRecord,
   fromPersistedRecord,
 } from "./persistedNotebook";
@@ -57,7 +58,7 @@ describe("persisted notebook record", () => {
       ],
     };
 
-    const restored = fromPersistedRecord(toPersistedRecord(tagged));
+    const restored = fromPersistedRecord(toPersistedRecord(tagged)).notebook;
 
     expect(restored.tags).toEqual(["reference", "demo"]);
     expect(restored.blocks[0].meta?.tags).toEqual(["intro"]);
@@ -68,7 +69,8 @@ describe("persisted notebook record", () => {
     const restored = fromPersistedRecord({
       schemaVersion: CURRENT_NOTEBOOK_SCHEMA_VERSION,
       notebook: baseNotebook,
-    });
+      sync: DEFAULT_SYNC_META,
+    }).notebook;
 
     expect(restored.id).toBe("nb_1");
     expect(restored.blocks).toHaveLength(2);

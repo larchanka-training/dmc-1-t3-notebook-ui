@@ -24,7 +24,15 @@ describe("useAppStore", () => {
         error: null,
       },
       notebookList: {
-        items: [{ id: "nb_1", title: "Draft", updatedAt: "2026-05-18T10:00:00.000Z" }],
+        items: [
+          {
+            id: "nb_1",
+            serverId: null,
+            title: "Draft",
+            updatedAt: "2026-05-18T10:00:00.000Z",
+            origin: "local-only",
+          },
+        ],
         status: "idle",
         error: null,
       },

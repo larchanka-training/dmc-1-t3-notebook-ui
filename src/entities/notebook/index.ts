@@ -1,4 +1,12 @@
-export type { CodeBlock, Notebook, NotebookBlock, TextBlock } from "./model/types";
+export type {
+  CodeBlock,
+  Notebook,
+  NotebookBlock,
+  NotebookSyncMeta,
+  NotebookSyncStatus,
+  StoredNotebook,
+  TextBlock,
+} from "./model/types";
 export {
   createCodeBlock,
   createTextBlock,
@@ -16,6 +24,7 @@ export {
 export { sampleNotebook } from "./lib/sampleNotebook";
 export {
   CURRENT_NOTEBOOK_SCHEMA_VERSION,
+  DEFAULT_SYNC_META,
   fromPersistedRecord,
   migrateRecord,
   toPersistedRecord,
@@ -26,3 +35,9 @@ export {
   type NotebookRepository,
 } from "./lib/notebookRepository";
 export { createLocalNotebookRepository } from "./lib/localNotebookRepository";
+export {
+  toServerSnapshot,
+  fromServerNotebook,
+  type ServerNotebook,
+  type ServerNotebookSummary,
+} from "./lib/serverNotebook";
