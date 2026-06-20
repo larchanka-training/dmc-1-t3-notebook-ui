@@ -62,6 +62,19 @@ Frontend-приложение отвечает за:
 
 Frontend владеет активной рабочей копией notebook во время редактирования.
 
+### 3.1 Текущее примечание по реализации
+
+Целевая модель ownership остается такой:
+
+- notebook working copy принадлежит notebook editing state
+- execution lifecycle и runtime outputs принадлежат `executionStore`
+
+Во время текущей миграции:
+
+- execution lifecycle и runtime outputs уже централизованы в global Zustand execution store
+- части notebook editing flow еще могут координироваться editor-local hooks до завершения notebook-state consolidation
+- execution state не должен возвращаться в editor-local state, даже если notebook editing пока частично локален
+
 ## 4. Структура исходного кода (Feature-Sliced Design)
 
 Код frontend в `ui/src/` организован по **Feature-Sliced Design (FSD)**.

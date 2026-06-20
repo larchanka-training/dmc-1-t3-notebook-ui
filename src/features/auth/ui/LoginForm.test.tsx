@@ -1,12 +1,16 @@
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { http, HttpResponse } from "msw";
+import { describe, expect, it, vi } from "vitest";
+import { TEST_API_BASE } from "@test/msw/handlers/auth";
+import { server } from "@test/msw/server";
 import { useAppStore } from "@/app/model";
+import { renderWithProviders } from "@test/renderWithProviders";
 import { LoginForm } from "./LoginForm";
 
 const renderLoginForm = (entry = "/login") =>
-  render(
+  renderWithProviders(
     <RouterProvider
       router={createMemoryRouter(
         [
@@ -31,65 +35,105 @@ describe("LoginForm — request step", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows an error when request-otp fails", async () => {
+    const user = userEvent.setup();
+    renderLoginForm();
+    await user.type(screen.getByLabelText(/email/i), "user@example.com");
+    await user.click(screen.getByRole("button", { name: /send code/i }));
+    await waitFor(() => {
+      expect(screen.getByLabelText(/one-time code/i)).toBeInTheDocument();
+    });
+
+    server.use(
+      http.post(`${TEST_API_BASE}/auth/request-otp`, () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: "otp_request_rate_limited",
+              message: "Too many OTP requests.",
+            },
+          },
+          { status: 429 },
+        ),
+      ),
+    );
+
+    await user.click(screen.getByRole("button", { name: /resend code/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/too many requests/i);
+  });
+
   it("does not show the OTP input before a code is requested", () => {
     renderLoginForm();
     expect(screen.queryByLabelText(/one-time code/i)).not.toBeInTheDocument();
   });
 
-  it("Google sign-in stub is a safe no-op", () => {
+  it("Google sign-in navigates to OAuth start URL", async () => {
+    const assign = vi.fn();
+    vi.stubGlobal("location", { ...globalThis.location, assign });
+
     renderLoginForm();
-    const button = screen.getByRole("button", { name: /continue with google/i });
-    expect(() => fireEvent.click(button)).not.toThrow();
-    expect(button).toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole("button", { name: /continue with google/i }),
+    );
+
+    expect(assign).toHaveBeenCalledWith(`${TEST_API_BASE}/auth/google/start`);
+    vi.unstubAllGlobals();
   });
 });
 
 describe("LoginForm — verify step", () => {
-  const submitEmail = (value: string) => {
-    fireEvent.change(screen.getByLabelText(/email/i), { target: { value } });
-    fireEvent.submit(
-      screen.getByRole("button", { name: /send code/i }).closest("form")!,
-    );
+  const submitEmail = async (value: string) => {
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/email/i), value);
+    await user.click(screen.getByRole("button", { name: /send code/i }));
+    await waitFor(() => {
+      expect(screen.getByLabelText(/one-time code/i)).toBeInTheDocument();
+    });
   };
 
-  it("advances to the verify step and shows where the code was sent", () => {
+  it("advances to the verify step and shows where the code was sent", async () => {
     renderLoginForm();
-    submitEmail("user@example.com");
-    expect(screen.getByLabelText(/one-time code/i)).toBeInTheDocument();
+    await submitEmail("user@example.com");
     expect(screen.getByText(/code sent to/i)).toHaveTextContent("user@example.com");
   });
 
-  it("shows an error and stays unauthenticated on a wrong code", () => {
+  it("does not show dev OTP hint outside development", async () => {
+    vi.stubEnv("DEV", false);
     renderLoginForm();
-    submitEmail("user@example.com");
-    fireEvent.change(screen.getByLabelText(/one-time code/i), {
-      target: { value: "0000" },
-    });
-    fireEvent.submit(
-      screen.getByRole("button", { name: /verify code/i }).closest("form")!,
-    );
-    expect(screen.getByRole("alert")).toHaveTextContent(/invalid code/i);
+    await submitEmail("user@example.com");
+    expect(screen.queryByText(/development code/i)).not.toBeInTheDocument();
+    vi.unstubAllEnvs();
+  });
+
+  it("shows an error and stays unauthenticated on a wrong code", async () => {
+    const user = userEvent.setup();
+    renderLoginForm();
+    await submitEmail("user@example.com");
+    await user.type(screen.getByLabelText(/one-time code/i), "000000");
+    await user.click(screen.getByRole("button", { name: /verify code/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/invalid code/i);
     expect(useAppStore.getState().auth.isAuthenticated).toBe(false);
   });
 
-  it("authenticates and navigates to /notebooks when the code is 1234", async () => {
+  it("authenticates and navigates to /notebooks with a valid code", async () => {
     const user = userEvent.setup();
     renderLoginForm();
-    submitEmail("user@example.com");
-    await user.type(screen.getByLabelText(/one-time code/i), "1234");
+    await submitEmail("user@example.com");
+    await user.type(screen.getByLabelText(/one-time code/i), "123456");
     await user.click(screen.getByRole("button", { name: /verify code/i }));
     expect(await screen.findByText("notebooks list")).toBeInTheDocument();
     expect(useAppStore.getState().auth.isAuthenticated).toBe(true);
-    expect(useAppStore.getState().auth.userEmail).toBe("user@example.com");
+    expect(useAppStore.getState().auth.user?.email).toBe("user@example.com");
+    expect(useAppStore.getState().auth.user?.id).toBe("usr_test");
+    expect(useAppStore.getState().auth.authenticatedAt).toBeTruthy();
   });
 
-  it("'Change email' returns to the request step and clears the code", () => {
+  it("'Change email' returns to the request step and clears the code", async () => {
+    const user = userEvent.setup();
     renderLoginForm();
-    submitEmail("user@example.com");
-    fireEvent.change(screen.getByLabelText(/one-time code/i), {
-      target: { value: "12" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /change email/i }));
+    await submitEmail("user@example.com");
+    await user.type(screen.getByLabelText(/one-time code/i), "12");
+    await user.click(screen.getByRole("button", { name: /change email/i }));
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
     expect(screen.queryByLabelText(/one-time code/i)).not.toBeInTheDocument();
   });

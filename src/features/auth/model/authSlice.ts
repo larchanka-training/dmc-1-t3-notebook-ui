@@ -1,24 +1,34 @@
 import type { StateCreator } from "zustand";
 import type { AuthSlice } from "./types";
 
-const initialAuth: AuthSlice["auth"] = {
+/** Unauthenticated state after logout or failed login. */
+export const unauthenticatedAuthState: AuthSlice["auth"] = {
   isAuthenticated: false,
-  userEmail: null,
+  user: null,
+  authenticatedAt: null,
   status: "idle",
   error: null,
 };
 
+/** App boot: session must be confirmed before trusting auth. */
+export const initialAuthState: AuthSlice["auth"] = {
+  ...unauthenticatedAuthState,
+  status: "checking",
+};
+
 export const createAuthSlice: StateCreator<AuthSlice, [], [], AuthSlice> = (set) => ({
-  auth: initialAuth,
-  setAuthenticated: (authed, email) =>
+  auth: initialAuthState,
+  setAuthUser: (user, authenticatedAt = null) =>
     set((s) => ({
       auth: {
         ...s.auth,
-        isAuthenticated: authed,
-        userEmail: authed ? (email ?? s.auth.userEmail) : null,
+        isAuthenticated: user !== null,
+        user,
+        authenticatedAt: user ? (authenticatedAt ?? s.auth.authenticatedAt) : null,
+        error: user ? null : s.auth.error,
       },
     })),
   setAuthStatus: (status, error = null) =>
     set((s) => ({ auth: { ...s.auth, status, error } })),
-  logout: () => set({ auth: initialAuth }),
+  logout: () => set({ auth: unauthenticatedAuthState }),
 });

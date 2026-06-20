@@ -86,7 +86,13 @@
 
 ### `executionStore`
 
-- session id, run status, running blocks, outputs by block id, execution errors
+- active execution id, active execution command, run status, running blocks, outputs by block id, execution errors
+
+Текущее примечание по реализации:
+
+- `executionStore.outputs` использует `Record<blockId, OutputItem[]>`
+- каждый массив `outputs[blockId]` представляет `outputs of latest run`, а не session-wide append-only history
+- execution lifecycle и runtime outputs уже принадлежат global execution store, даже если notebook editing flow во время миграции еще частично координируется editor-local hooks
 
 ### `syncStore`
 
@@ -99,6 +105,7 @@
 ## Границы
 
 - execution state не становится durable notebook state случайно
+- execution state не должен возвращаться в editor-local state после централизации в `executionStore`
 - sync state описывает alignment, не заменяет ownership контента
 - block UI state не владеет контентом блока
 - auth state не хранит notebook content

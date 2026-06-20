@@ -31,6 +31,22 @@ export default defineConfig([
       "fsd/no-higher-level-imports": "off",
     },
   },
+  // editor orchestrates execution via the public execution API (eslint-plugin-boundaries
+  // explicitly allows features→features; steiger aligned here for the same boundary).
+  {
+    files: ["./src/features/editor/**", "./src/**/*.test.ts", "./src/**/*.test.tsx"],
+    rules: {
+      "fsd/no-cross-imports": "off",
+    },
+  },
+  // notebooks composes the sync public API for the merged list / open-remote flow
+  // (same features→features boundary already allowed for editor→sync above).
+  {
+    files: ["./src/features/notebooks/**"],
+    rules: {
+      "fsd/no-cross-imports": "off",
+    },
+  },
   // Notebook aggregate composes block primitives (entities/notebook → entities/block public API).
   {
     files: ["./src/entities/notebook/**"],

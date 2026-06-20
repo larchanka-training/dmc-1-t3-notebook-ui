@@ -14,6 +14,7 @@
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "verify": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test",
     "verify:commit": "pnpm lint-staged && pnpm typecheck && pnpm lint && pnpm lint:fsd && pnpm test",
     "prepare": "husky"
@@ -62,12 +63,14 @@
     "@typescript-eslint/eslint-plugin": "^8.14.0",
     "@typescript-eslint/parser": "^8.14.0",
     "@vitejs/plugin-react": "^6.0.2",
+    "@vitest/coverage-v8": "^4.1.0",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.13.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-boundaries": "^6.0.2",
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-react-refresh": "^0.4.13",
+    "fake-indexeddb": "^6.2.5",
     "husky": "^9.1.7",
     "jsdom": "^29.1.1",
     "lint-staged": "^17.0.5",
@@ -77,7 +80,7 @@
     "steiger": "^0.5.12",
     "tailwindcss": "^3.4.13",
     "typescript": "^5.6.3",
-    "vite": "^8.0.13",
+    "vite": "^8.0.16",
     "vitest": "^4.1.6"
   },
   "overrides": {

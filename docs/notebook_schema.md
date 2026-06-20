@@ -14,12 +14,16 @@ Recommended frontend notebook shape:
 {
   "id": "nb_123",
   "title": "Example notebook",
+  "tags": ["reference", "demo"],
   "blocks": [
     {
       "id": "blk_1",
       "type": "text",
       "content": {
         "markdown": "# Title"
+      },
+      "meta": {
+        "tags": ["intro", "summary"]
       }
     },
     {
@@ -28,6 +32,9 @@ Recommended frontend notebook shape:
       "content": {
         "language": "javascript",
         "source": "const x = 1;\nconsole.log(x);"
+      },
+      "meta": {
+        "tags": ["example", "javascript"]
       }
     }
   ],
@@ -43,6 +50,7 @@ Recommended frontend notebook shape:
 
 - `id`
 - `title`
+- `tags`
 - `blocks`
 - `revision`
 - `createdAt`
@@ -51,6 +59,7 @@ Recommended frontend notebook shape:
 ### Notes
 
 - `revision` is the last durable server revision known to the client
+- `tags` stores notebook-level tags as a list of strings
 - `blocks` are ordered by array order
 - Version 1 does not use additional block layout metadata
 
@@ -61,10 +70,11 @@ Recommended frontend notebook shape:
 - `id`
 - `type`
 - `content`
-
-Optional future-safe fields:
-
 - `meta`
+
+Required shared metadata fields:
+
+- `meta.tags`
 
 ### Text Block
 
@@ -74,6 +84,9 @@ Optional future-safe fields:
   "type": "text",
   "content": {
     "markdown": "## Notes\nSome text."
+  },
+  "meta": {
+    "tags": ["notes", "draft"]
   }
 }
 ```
@@ -82,6 +95,7 @@ Rules:
 
 - `type` must be `text`
 - `content.markdown` is the editable source of truth
+- `meta.tags` is required and stores block tags as a list of strings
 
 ### Code Block
 
@@ -92,6 +106,9 @@ Rules:
   "content": {
     "language": "javascript",
     "source": "fetch('/api').then(console.log)"
+  },
+  "meta": {
+    "tags": ["api", "example"]
   }
 }
 ```
@@ -101,6 +118,7 @@ Rules:
 - `type` must be `code`
 - Version 1 `language` should always be `javascript`
 - the code source remains normal editable content after AI updates
+- `meta.tags` is required and stores block tags as a list of strings
 
 ## Output Schemas
 
@@ -203,6 +221,26 @@ Purpose:
 - support ordering and recovery UX
 
 `hasUnsyncedChanges` is persisted in IndexedDB per [ADR-007](./adr/ADR-007-unsynced-changes-persistence.md).
+
+## Persisted Local Format (v0)
+
+Notebooks are stored locally in IndexedDB (Dexie, see [ADR-002](./adr/ADR-002-indexeddb-library.md))
+wrapped in a versioned record:
+
+```json
+{
+  "schemaVersion": 0,
+  "notebook": { "id": "nb_123", "title": "…", "tags": [], "blocks": [] }
+}
+```
+
+- `schemaVersion` marks the durable format; `v0` is the current version. Loading
+  passes records through a `migrate` seam so future versions can upgrade in place.
+- On save, notebook-level `tags` and block-level `meta.tags` are normalized to `[]`
+  when absent, so a loaded notebook always exposes both. In the working TypeScript
+  model these fields are optional (`tags?`, `meta?`) and only guaranteed after a
+  persistence round-trip.
+- Runtime outputs are never written to the persisted record.
 
 ## Sync Metadata Schema
 

@@ -90,15 +90,22 @@ Purpose:
 
 Contains:
 
-- execution session id
+- active execution id
+- active execution command
 - execution status
 - running target
 - running block ids
 - block outputs
 - execution errors
-- execution cancellation state
 
 This store owns runtime artifacts, not durable notebook state.
+
+Current implementation note:
+
+- block outputs are stored as `Record<blockId, OutputItem[]>`
+- each output array belongs to the latest run of that block only
+- a new run replaces the previous array for the affected block instead of appending to a session-wide log
+- `executionStore` already acts as the source of truth for execution lifecycle and outputs during the current migration phase
 
 ### `syncStore`
 
@@ -136,6 +143,7 @@ Contains:
 - notebook blocks are durable editable content
 - outputs are runtime artifacts
 - a code block content change may invalidate outputs, but it must not rewrite the notebook block structure from the execution layer
+- `activeNotebookStore` remains the intended editing source of truth architecturally, even if parts of the current editor flow are still being migrated away from local hook state
 
 ### `activeNotebookStore` and `syncStore`
 

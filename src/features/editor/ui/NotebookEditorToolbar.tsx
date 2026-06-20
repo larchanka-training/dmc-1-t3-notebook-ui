@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import type { Notebook } from "@/entities/notebook";
+import type { Notebook, NotebookSyncStatus } from "@/entities/notebook";
 import { Button } from "@/shared/ui";
 import { editorSecondaryButtonClass } from "../lib/editorStyles";
 import type { BlockActions } from "../model/types";
@@ -8,12 +8,39 @@ type NotebookEditorToolbarProps = {
   notebook: Notebook;
   lastBlockId: string;
   actions: BlockActions;
+  executionMessage: string;
+  executionStatus: string;
+  canStartExecution: boolean;
+  canStopExecution: boolean;
+  syncStatus: NotebookSyncStatus;
+  onSync: () => void;
 };
+
+function syncStatusLabel(status: NotebookSyncStatus): string {
+  switch (status) {
+    case "syncing":
+      return "Syncing…";
+    case "synced":
+      return "Synced";
+    case "conflict":
+      return "Sync conflict";
+    case "error":
+      return "Sync error";
+    default:
+      return "Unsynced";
+  }
+}
 
 export function NotebookEditorToolbar({
   notebook,
   lastBlockId,
   actions,
+  executionMessage,
+  executionStatus,
+  canStartExecution,
+  canStopExecution,
+  syncStatus,
+  onSync,
 }: NotebookEditorToolbarProps) {
   return (
     <header className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-border-token bg-surface/95 px-token-24 py-token-12 backdrop-blur-md max-md:flex-col max-md:items-start">
@@ -29,6 +56,13 @@ export function NotebookEditorToolbar({
           /
         </span>
         <span className="ml-2 text-sm font-semibold text-ink">{notebook.title}</span>
+        <p
+          className="mt-1 text-xs text-ink-muted"
+          aria-live="polite"
+          data-execution-status={executionStatus}
+        >
+          {executionMessage}
+        </p>
       </div>
       <div
         className="flex flex-wrap justify-end gap-2 max-md:justify-start"
@@ -39,6 +73,7 @@ export function NotebookEditorToolbar({
           variant="outline"
           size="sm"
           className={editorSecondaryButtonClass}
+          disabled={!canStartExecution}
           onClick={() => actions.addBlockAfter(lastBlockId, "text")}
         >
           Add text block
@@ -48,27 +83,45 @@ export function NotebookEditorToolbar({
           variant="outline"
           size="sm"
           className={editorSecondaryButtonClass}
+          disabled={!canStartExecution}
           onClick={() => actions.addBlockAfter(lastBlockId, "code")}
         >
           Add code block
         </Button>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-ink-muted" data-testid="sync-status">
+            {syncStatusLabel(syncStatus)}
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={editorSecondaryButtonClass}
+            onClick={onSync}
+            disabled={syncStatus === "syncing"}
+          >
+            Sync
+          </Button>
+        </div>
         <Button
           type="button"
           variant="outline"
           size="sm"
           className={editorSecondaryButtonClass}
-          disabled
+          disabled={!canStartExecution}
+          onClick={() => actions.runAll()}
         >
-          Sync placeholder
+          Run all
         </Button>
         <Button
           type="button"
           variant="outline"
           size="sm"
           className={editorSecondaryButtonClass}
-          disabled
+          disabled={!canStopExecution}
+          onClick={() => actions.stopExecution()}
         >
-          Run all placeholder
+          Stop
         </Button>
         <Button
           type="button"

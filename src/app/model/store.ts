@@ -1,10 +1,10 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { StateCreator } from "zustand";
-import { createAuthSlice } from "@/features/auth";
+import { createAuthSlice } from "@/features/auth/@x/app";
 import { createNotebookListSlice } from "@/features/notebooks";
 import { createActiveNotebookSlice, createBlockUiSlice } from "@/features/editor";
-import { createExecutionSlice } from "@/features/execution";
+import { createExecutionSlice, initialExecutionState } from "@/features/execution";
 import { createSyncSlice } from "@/features/sync";
 import { createAppUiSlice } from "./appUiSlice";
 import { authPersistOptions } from "./persist";
@@ -33,7 +33,8 @@ const createRootState: StateCreator<
       set({
         auth: {
           isAuthenticated: false,
-          userEmail: null,
+          user: null,
+          authenticatedAt: null,
           status: "idle",
           error: null,
         },
@@ -45,13 +46,7 @@ const createRootState: StateCreator<
           toolbarOpenForBlockId: null,
           aiPromptOpenForBlockId: null,
         },
-        execution: {
-          status: "idle",
-          targetBlockId: null,
-          runningBlockIds: [],
-          outputs: {},
-          error: null,
-        },
+        execution: initialExecutionState,
         sync: { lastSyncedAt: null, status: "idle", error: null },
       });
     },

@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { testUser } from "@test/authFixtures";
 import { useAppStore } from "./store";
 
 describe("useAppStore", () => {
@@ -17,16 +18,39 @@ describe("useAppStore", () => {
     useAppStore.setState({
       auth: {
         isAuthenticated: true,
-        userEmail: "x@y.z",
+        user: testUser("x@y.z"),
+        authenticatedAt: null,
         status: "idle",
         error: null,
       },
       notebookList: {
-        items: [{ id: "nb_1", title: "Draft", updatedAt: "2026-05-18T10:00:00.000Z" }],
+        items: [
+          {
+            id: "nb_1",
+            serverId: null,
+            title: "Draft",
+            updatedAt: "2026-05-18T10:00:00.000Z",
+            origin: "local-only",
+          },
+        ],
         status: "idle",
         error: null,
       },
       activeNotebook: { notebookId: "nb_1", blocks: [], dirty: true },
+      execution: {
+        status: "running",
+        activeExecutionId: "exec_1",
+        activeCommand: "run-current",
+        targetBlockId: "blk_1",
+        runningBlockIds: ["blk_1"],
+        outputs: {
+          blk_1: [{ type: "text", payload: "hello" }],
+        },
+        error: {
+          kind: "runtime",
+          message: "boom",
+        },
+      },
     });
 
     useAppStore.getState().logout();
@@ -36,5 +60,12 @@ describe("useAppStore", () => {
     expect(state.notebookList.items).toHaveLength(0);
     expect(state.activeNotebook.notebookId).toBeNull();
     expect(state.activeNotebook.dirty).toBe(false);
+    expect(state.execution.status).toBe("idle");
+    expect(state.execution.activeExecutionId).toBeNull();
+    expect(state.execution.activeCommand).toBeNull();
+    expect(state.execution.targetBlockId).toBeNull();
+    expect(state.execution.runningBlockIds).toEqual([]);
+    expect(state.execution.outputs).toEqual({});
+    expect(state.execution.error).toBeNull();
   });
 });

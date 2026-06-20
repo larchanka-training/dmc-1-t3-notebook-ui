@@ -26,6 +26,7 @@ Hard boundaries:
 - `blockUiStore` does not own block content
 - `authStore` does not own notebook content
 - `syncStore` describes alignment; `activeNotebookStore` owns the editable snapshot
+- once execution lifecycle and outputs are centralized in `executionStore`, they must not move back into editor-local state
 
 During incremental migration, slice stores may be composed in `app/model/`, but ownership rules above remain mandatory.
 
@@ -45,6 +46,7 @@ Version 1 fixes `Zustand` in `ui_architecture.md`. The product combines local ed
 - store definitions live in `state_model.md` and `zusthand-store.md`
 - logout resets notebook list, active notebook, execution, and sync stores
 - notebook switch clears block UI and execution session state, then loads the new working copy
+- execution ownership may land in the composed app store earlier than full notebook working-copy consolidation during migration
 - server data for lists and auth should prefer React Query (see [ADR-006](./ADR-006-api-client-strategy.md))
 
 ## Related Documents

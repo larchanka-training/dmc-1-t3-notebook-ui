@@ -1,9 +1,30 @@
-import { Link } from "react-router-dom";
-import { Button, EmptyState } from "@/shared/ui";
+import { Button, Card, EmptyState } from "@/shared/ui";
 import { useNotebooksList } from "../model/useNotebooksList";
+import type { NotebookListItem, NotebookOrigin } from "../model/mergeNotebookList";
+
+const ORIGIN_LABEL: Record<NotebookOrigin, string> = {
+  "local-only": "Local only",
+  synced: "Synced",
+  "remote-only": "On server",
+};
+
+function originBadgeClass(origin: NotebookOrigin): string {
+  switch (origin) {
+    case "synced":
+      return "bg-accent-primary/10 text-accent-primary";
+    case "remote-only":
+      return "bg-editor text-ink-muted";
+    default:
+      return "bg-surface text-ink-muted";
+  }
+}
+
+function itemKey(item: NotebookListItem): string {
+  return item.id ?? `server-${item.serverId}`;
+}
 
 export function NotebooksList() {
-  const { items, status, error, onCreateNotebook } = useNotebooksList();
+  const { items, status, error, onCreateNotebook, onOpen } = useNotebooksList();
 
   return (
     <div className="mx-auto max-w-3xl p-token-24">
@@ -28,21 +49,34 @@ export function NotebooksList() {
         </EmptyState>
       )}
       {status === "idle" && items.length > 0 && (
-        <ul className="divide-y divide-border-token rounded border border-border-token bg-surface">
-          {items.map((nb) => (
-            <li key={nb.id}>
-              <Link
-                to={`/notebooks/${nb.id}`}
-                className="block px-token-16 py-token-12 text-sm text-ink no-underline transition-colors hover:bg-editor focus-visible:bg-editor focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
-              >
-                <span className="font-medium">{nb.title}</span>
-                <span className="mt-1 block text-xs text-ink-muted">
-                  Updated {new Date(nb.updatedAt).toLocaleString()}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <Card className="overflow-hidden rounded-lg border-border-token bg-surface shadow-sm">
+          <ul className="divide-y divide-border-token">
+            {items.map((nb) => (
+              <li key={itemKey(nb)}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void onOpen(nb);
+                  }}
+                  className="block w-full px-token-16 py-token-12 text-left text-sm text-ink transition-colors hover:bg-editor focus-visible:bg-editor focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
+                >
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="font-medium">{nb.title}</span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${originBadgeClass(nb.origin)}`}
+                      data-testid="notebook-origin"
+                    >
+                      {ORIGIN_LABEL[nb.origin]}
+                    </span>
+                  </span>
+                  <span className="mt-1 block text-xs text-ink-muted">
+                    Updated {new Date(nb.updatedAt).toLocaleString()}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Card>
       )}
     </div>
   );

@@ -48,7 +48,7 @@ export function CodeBlockEditor({
           highlightActiveLine: true,
         }}
         onChange={(value) => onChange(value)}
-        className="overflow-x-auto [&_.cm-editor]:bg-gray-900 [&_.cm-editor]:text-sm [&_.cm-scroller]:font-mono [&_.cm-content]:py-4"
+        className="overflow-x-auto [&_.cm-editor]:bg-gray-100 [&_.cm-gutters]:bg-gray-100 [&_.cm-editor]:text-sm [&_.cm-scroller]:font-mono [&_.cm-content]:py-4"
       />
     </>
   );

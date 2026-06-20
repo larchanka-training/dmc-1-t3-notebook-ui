@@ -1,5 +1,5 @@
 import { describe, it, expectTypeOf } from "vitest";
-import type { AuthSlice } from "@/features/auth";
+import type { AuthSlice } from "@/features/auth/@x/app";
 import type { ActiveNotebookSlice, BlockUiSlice } from "@/features/editor";
 import type { ExecutionSlice } from "@/features/execution";
 import type { NotebookListSlice } from "@/features/notebooks";
