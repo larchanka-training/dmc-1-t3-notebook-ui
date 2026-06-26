@@ -15,6 +15,19 @@ pnpm dev
 
 Open the local URL from Vite (usually `http://localhost:5173`), or `https://notebook.com` when running the full monorepo via Docker (see monorepo `docs/Local-Proxy.md`).
 
+## Local AI rollout
+
+`WebLLM` local mode is disabled by default. The intended rollout policy for the current slice is `dev-opt-in`, so the normal backend-first AI flow remains the baseline in every environment unless the frontend runtime is explicitly configured otherwise.
+
+To enable local mode in local development:
+
+```env
+VITE_WEBLLM_LOCAL_MODE_ROLLOUT_POLICY=dev-opt-in
+VITE_WEBLLM_LOCAL_MODE_ENABLED=true
+```
+
+For QA or product validation, treat `public-opt-in` as an explicit override rather than a default production posture. The notebook AI UI may still render a visible `Local WebLLM` panel and `Generate locally` button while local mode is unavailable, but those controls must remain disabled and explained until runtime preparation and policy checks pass.
+
 ## Documentation
 
 Canonical UI specs live in [`docs/`](./docs/). Start with [`docs/index.md`](./docs/index.md) for navigation.

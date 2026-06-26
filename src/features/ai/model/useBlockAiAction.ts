@@ -1,10 +1,14 @@
 import { useCallback, useMemo, useState } from "react";
-import type { ApiError } from "@/shared/api";
-import { generateCodeBlock } from "../api/aiApi";
+import {
+  AiGenerationError,
+  backendAiGenerationProvider,
+  localAiGenerationProvider,
+  type AiGenerationProviderMetadata,
+} from "../api";
 import { buildAiRequestContext, parseAiSourceText } from "./contextBuilder";
+import { useLocalAiRuntime } from "./localRuntime";
+import { getLocalAiRuntimeConfig } from "@/shared/config";
 import type {
-  AiErrorClass,
-  AiErrorCode,
   AiScope,
   BlockAiErrorState,
   BlockAiState,
@@ -31,43 +35,37 @@ function resolveAiNotebookId(
   return null;
 }
 
-function mapAiErrorKind(code: AiErrorCode): AiErrorClass {
-  switch (code) {
-    case "AI_INVALID_REQUEST":
-      return "validation";
-    case "AI_FORBIDDEN":
-      return "forbidden";
-    case "AI_PROMPT_REJECTED":
-    case "AI_PROMPT_UNSAFE":
-      return "policy";
-    case "AI_PROVIDER_UNAVAILABLE":
-    case "AI_PROVIDER_TIMEOUT":
-      return "provider";
-    case "AI_RESPONSE_INVALID":
-    case "AI_CODE_EXTRACTION_FAILED":
-    case "AI_CODE_SYNTAX_INVALID":
-    case "invalid_response":
-      return "response";
-    default:
-      return "unknown";
+function resolveLocalAiNotebookId(
+  notebookId: string | null,
+  serverNotebookId: string | null,
+): string | null {
+  if (typeof notebookId === "string" && notebookId.length > 0) {
+    return notebookId;
   }
+
+  if (typeof serverNotebookId === "string" && serverNotebookId.length > 0) {
+    return serverNotebookId;
+  }
+
+  return null;
 }
 
+const BACKEND_PENDING_PROVIDER: AiGenerationProviderMetadata = {
+  id: "bedrock",
+  model: "server-managed",
+  label: "bedrock",
+  path: "backend",
+};
+
 function toAiErrorState(error: unknown): BlockAiErrorState {
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    "status" in error
-  ) {
-    const apiError = error as ApiError;
-    const code = apiError.code as AiErrorCode;
+  if (error instanceof AiGenerationError) {
     return {
-      code,
-      message: apiError.message,
-      retryable: apiError.retryable,
-      requestId: apiError.requestId,
-      kind: mapAiErrorKind(code),
+      code: error.code,
+      message: error.message,
+      retryable: error.retryable,
+      requestId: error.requestId,
+      kind: error.kind,
+      provider: error.provider,
     };
   }
 
@@ -77,6 +75,21 @@ function toAiErrorState(error: unknown): BlockAiErrorState {
     retryable: true,
     requestId: null,
     kind: "unknown",
+    provider: null,
+  };
+}
+
+function withProviderFallback(
+  error: BlockAiErrorState,
+  provider: AiGenerationProviderMetadata | null,
+): BlockAiErrorState {
+  if (error.provider) {
+    return error;
+  }
+
+  return {
+    ...error,
+    provider,
   };
 }
 
@@ -87,12 +100,13 @@ function createIdleState(derivedPrompt: string, scope: AiScope): BlockAiState {
     scope,
     lastRequestId: null,
     lastResponseCode: null,
+    provider: null,
     warnings: [],
     error: null,
   };
 }
 
-function errorKindLabel(kind: AiErrorClass): string {
+function errorKindLabel(kind: BlockAiErrorState["kind"]): string {
   switch (kind) {
     case "validation":
       return "Validation";
@@ -109,6 +123,65 @@ function errorKindLabel(kind: AiErrorClass): string {
   }
 }
 
+function formatProviderLabel(provider: AiGenerationProviderMetadata | null): string | null {
+  if (!provider) {
+    return null;
+  }
+
+  return provider.id === "webllm" ? provider.label : provider.id;
+}
+
+function toBackendValidationError(
+  provider: AiGenerationProviderMetadata | null,
+): BlockAiErrorState {
+  return {
+    code: "AI_INVALID_REQUEST",
+    message: "AI generation requires a synced notebook available on the server.",
+    retryable: false,
+    requestId: null,
+    kind: "validation",
+    provider,
+  };
+}
+
+function toLocalValidationError(
+  provider: AiGenerationProviderMetadata | null,
+): BlockAiErrorState {
+  return {
+    code: "AI_INVALID_REQUEST",
+    message: "Local AI generation requires a notebook loaded in the editor.",
+    retryable: false,
+    requestId: null,
+    kind: "validation",
+    provider,
+  };
+}
+
+function createGenerationRequest(params: {
+  notebookId: string;
+  blockId: string;
+  prompt: string;
+  scope: AiScope;
+  sourceText: string;
+  notebookTitle?: string;
+  relevantBlocks: ReturnType<typeof buildAiRequestContext>["relevantBlocks"];
+}) {
+  return {
+    notebookId: params.notebookId,
+    sourceBlockId: params.blockId,
+    mode: "generate" as const,
+    prompt: params.prompt,
+    context: {
+      language: "javascript" as const,
+      scope: params.scope,
+      sourceText: params.sourceText,
+      notebookTitle: params.notebookTitle,
+      relevantBlocks: params.relevantBlocks,
+    },
+    insertionStrategy: "next-empty-or-new-after-source" as const,
+  };
+}
+
 export function useBlockAiAction({
   notebookId,
   serverNotebookId,
@@ -116,7 +189,11 @@ export function useBlockAiAction({
   blocks,
   block,
   onInsertCode,
+  provider = backendAiGenerationProvider,
+  localProvider = localAiGenerationProvider,
 }: BlockAiActionProps) {
+  const localRuntime = useLocalAiRuntime();
+  const localRuntimeConfig = useMemo(() => getLocalAiRuntimeConfig(), []);
   const derived = useMemo(
     () => parseAiSourceText(block.content.markdown),
     [block.content.markdown],
@@ -124,19 +201,34 @@ export function useBlockAiAction({
   const [state, setState] = useState<BlockAiState>(() =>
     createIdleState(derived.prompt, derived.scope),
   );
+  const backendNotebookId = useMemo(
+    () => resolveAiNotebookId(notebookId, serverNotebookId),
+    [notebookId, serverNotebookId],
+  );
+  const localNotebookId = useMemo(
+    () => resolveLocalAiNotebookId(notebookId, serverNotebookId),
+    [notebookId, serverNotebookId],
+  );
+  const isBackendNotebookEligible = backendNotebookId !== null;
+  const isLocalNotebookEligible = localNotebookId !== null;
+  const isUnsyncedLocalDraft = !isBackendNotebookEligible && isLocalNotebookEligible;
 
-  const runGenerate = useCallback(async () => {
-    const aiNotebookId = resolveAiNotebookId(notebookId, serverNotebookId);
+  const runGenerate = useCallback(async (mode: "backend" | "local") => {
+    const aiNotebookId = mode === "local" ? localNotebookId : backendNotebookId;
     const context = buildAiRequestContext({
       blocks,
       sourceBlock: block,
       notebookTitle,
     });
+    const selectedProvider =
+      mode === "local" ? localRuntime.provider : BACKEND_PENDING_PROVIDER;
+
     setState((previous) => ({
       ...previous,
       status: "submitting",
       derivedPrompt: context.prompt,
       scope: context.scope,
+      provider: selectedProvider,
       error: null,
       warnings: [],
     }));
@@ -145,32 +237,27 @@ export function useBlockAiAction({
       setState((previous) => ({
         ...previous,
         status: "error",
-        error: {
-          code: "AI_INVALID_REQUEST",
-          message: "AI generation requires a synced notebook available on the server.",
-          retryable: false,
-          requestId: null,
-          kind: "validation",
-        },
+        provider: selectedProvider,
+        error:
+          mode === "local"
+            ? toLocalValidationError(selectedProvider)
+            : toBackendValidationError(selectedProvider),
       }));
       return;
     }
 
     try {
-      const response = await generateCodeBlock({
-        notebookId: aiNotebookId,
-        sourceBlockId: block.id,
-        mode: "generate",
-        prompt: context.prompt,
-        context: {
-          language: "javascript",
+      const response = await (mode === "local" ? localProvider : provider).generate(
+        createGenerationRequest({
+          notebookId: aiNotebookId,
+          blockId: block.id,
+          prompt: context.prompt,
           scope: context.scope,
           sourceText: context.sourceText,
           notebookTitle: context.notebookTitle,
           relevantBlocks: context.relevantBlocks,
-        },
-        insertionStrategy: "next-empty-or-new-after-source",
-      });
+        }),
+      );
 
       onInsertCode?.(block.id, response.code);
 
@@ -180,24 +267,53 @@ export function useBlockAiAction({
         scope: context.scope,
         lastRequestId: response.requestId,
         lastResponseCode: response.code,
+        provider: response.provider,
         warnings: response.warnings,
         error: null,
       });
     } catch (error) {
-      const nextError = toAiErrorState(error);
+      const nextError = withProviderFallback(toAiErrorState(error), selectedProvider);
       setState((previous) => ({
         ...previous,
         status: "error",
         lastRequestId: nextError.requestId,
+        provider: nextError.provider,
         error: nextError,
       }));
     }
-  }, [block, blocks, notebookId, serverNotebookId, notebookTitle, onInsertCode]);
+  }, [
+    block,
+    blocks,
+    backendNotebookId,
+    localProvider,
+    localNotebookId,
+    localRuntime.provider,
+    notebookTitle,
+    onInsertCode,
+    provider,
+  ]);
+
+  const prepareLocalMode = useCallback(async () => {
+    await localRuntime.initialize();
+  }, [localRuntime]);
 
   const canGenerate = state.status !== "submitting" && derived.prompt.length > 0;
   const isSubmitting = state.status === "submitting";
+  const localModeEnabled = localRuntimeConfig.enabled;
+  const canPrepareLocal =
+    localModeEnabled &&
+    state.status !== "submitting" &&
+    (localRuntime.status === "idle" || localRuntime.status === "failed");
+  const canGenerateLocally =
+    localModeEnabled &&
+    state.status !== "submitting" &&
+    derived.prompt.length > 0 &&
+    localRuntime.status === "ready";
+  const canRetryLocally =
+    canGenerateLocally && state.status === "error" && Boolean(state.error?.retryable);
   const successPreview = state.status === "success" ? state.lastResponseCode : null;
-  const statusLabel =
+  const providerLabel = formatProviderLabel(state.provider);
+  const statusLabelBase =
     state.status === "submitting"
       ? "Submitting"
       : state.status === "success"
@@ -205,9 +321,25 @@ export function useBlockAiAction({
         : state.status === "error"
           ? "Failed"
           : "Idle";
+  const statusLabel = providerLabel
+    ? `${statusLabelBase} via ${providerLabel}`
+    : statusLabelBase;
   const errorSummary = state.error
-    ? `${errorKindLabel(state.error.kind)}: ${state.error.message}`
+    ? `${errorKindLabel(state.error.kind)}${providerLabel ? ` via ${providerLabel}` : ""}: ${state.error.message}`
     : null;
+  const localRuntimeSummary =
+    localRuntime.status === "loading-model"
+      ? localRuntime.progressLabel ?? "Preparing WebLLM local mode..."
+      : localRuntime.status === "ready"
+        ? isUnsyncedLocalDraft
+          ? `Backend AI requires a synced notebook. Local mode ready via ${localRuntime.provider.label}.`
+          : `Local mode ready via ${localRuntime.provider.label}.`
+        : !localModeEnabled
+          ? "Local WebLLM is disabled in the current frontend runtime configuration."
+          : isUnsyncedLocalDraft
+            ? localRuntime.error?.message ??
+              "Backend AI requires a synced notebook. Prepare WebLLM to generate locally for this draft."
+            : localRuntime.error?.message ?? "Local WebLLM mode is available on demand.";
 
   return {
     status: state.status,
@@ -217,9 +349,18 @@ export function useBlockAiAction({
     canGenerate,
     successPreview,
     warnings: state.warnings,
+    provider: state.provider,
     error: state.error,
     errorSummary,
+    localModeEnabled: true,
+    localRuntimeStatus: localRuntime.status,
+    localRuntimeSummary,
+    canPrepareLocal,
+    canGenerateLocally,
+    canRetryLocally,
     requestId: state.lastRequestId,
-    onGenerate: runGenerate,
+    onGenerate: () => runGenerate("backend"),
+    onGenerateLocally: () => runGenerate("local"),
+    onPrepareLocalMode: prepareLocalMode,
   };
 }

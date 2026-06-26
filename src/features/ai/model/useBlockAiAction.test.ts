@@ -4,27 +4,32 @@ import { createTextBlock } from "@/entities/notebook";
 import type { TextBlock } from "@/entities/notebook";
 import { useBlockAiAction } from "./useBlockAiAction";
 
-const generateCodeBlockMock = vi.fn();
+const generateMock = vi.fn();
 
-vi.mock("../api/aiApi", () => ({
-  generateCodeBlock: (...args: unknown[]) => generateCodeBlockMock(...args),
+vi.mock("../api", () => ({
+  backendAiGenerationProvider: {
+    generate: (...args: unknown[]) => generateMock(...args),
+  },
+  localAiGenerationProvider: {
+    generate: vi.fn(),
+  },
+  AiGenerationError: class AiGenerationError extends Error {},
 }));
 
 describe("useBlockAiAction", () => {
   beforeEach(() => {
-    generateCodeBlockMock.mockReset();
+    generateMock.mockReset();
   });
 
   it("uses sync.serverId for synced local working copies", async () => {
-    generateCodeBlockMock.mockResolvedValue({
+    generateMock.mockResolvedValue({
       requestId: "air_success_server_id",
-      status: "success",
       code: "const total = 1;",
-      provider: { name: "bedrock", model: "deepseek.v3.2" },
-      validation: {
-        extractionApplied: false,
-        syntaxOk: true,
-        repairAttempts: 0,
+      provider: {
+        id: "bedrock",
+        model: "deepseek.v3.2",
+        label: "bedrock:deepseek.v3.2",
+        path: "backend",
       },
       warnings: [],
     });
@@ -50,25 +55,30 @@ describe("useBlockAiAction", () => {
     });
 
     await waitFor(() => expect(result.current.status).toBe("success"));
-    expect(generateCodeBlockMock).toHaveBeenCalledWith(
+    expect(generateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         notebookId: "2d58d140-5532-4ac3-8457-3114a9f4b9f2",
         sourceBlockId: "blk_source",
       }),
     );
     expect(onInsertCode).toHaveBeenCalledWith("blk_source", "const total = 1;");
+    expect(result.current.provider).toEqual({
+      id: "bedrock",
+      model: "deepseek.v3.2",
+      label: "bedrock:deepseek.v3.2",
+      path: "backend",
+    });
   });
 
   it("still allows direct UUID notebook routes without sync.serverId", async () => {
-    generateCodeBlockMock.mockResolvedValue({
+    generateMock.mockResolvedValue({
       requestId: "air_success_direct_uuid",
-      status: "success",
       code: "const answer = 42;",
-      provider: { name: "bedrock", model: "deepseek.v3.2" },
-      validation: {
-        extractionApplied: false,
-        syntaxOk: true,
-        repairAttempts: 0,
+      provider: {
+        id: "bedrock",
+        model: "deepseek.v3.2",
+        label: "bedrock:deepseek.v3.2",
+        path: "backend",
       },
       warnings: [],
     });
@@ -92,10 +102,61 @@ describe("useBlockAiAction", () => {
     });
 
     await waitFor(() => expect(result.current.status).toBe("success"));
-    expect(generateCodeBlockMock).toHaveBeenCalledWith(
+    expect(generateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         notebookId: "2d58d140-5532-4ac3-8457-3114a9f4b9f2",
       }),
     );
+  });
+
+  it("keeps the same insertion flow when a local provider is injected", async () => {
+    const sourceBlock = createTextBlock(
+      "blk_source",
+      "Write JavaScript code.",
+    ) as TextBlock;
+    const localProvider = {
+      generate: vi.fn().mockResolvedValue({
+        requestId: "air_success_local",
+        code: "const total = 1;",
+        provider: {
+          id: "webllm",
+          model: "test-model",
+          label: "webllm:test-model",
+          path: "local",
+        },
+        warnings: [],
+      }),
+    };
+    const onInsertCode = vi.fn();
+    const { result } = renderHook(() =>
+      useBlockAiAction({
+        notebookId: "2d58d140-5532-4ac3-8457-3114a9f4b9f2",
+        serverNotebookId: null,
+        notebookTitle: "Server-backed route",
+        blocks: [sourceBlock],
+        block: sourceBlock,
+        onInsertCode,
+        provider: localProvider,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.onGenerate();
+    });
+
+    await waitFor(() => expect(result.current.status).toBe("success"));
+    expect(localProvider.generate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        notebookId: "2d58d140-5532-4ac3-8457-3114a9f4b9f2",
+        sourceBlockId: "blk_source",
+      }),
+    );
+    expect(onInsertCode).toHaveBeenCalledWith("blk_source", "const total = 1;");
+    expect(result.current.provider).toEqual({
+      id: "webllm",
+      model: "test-model",
+      label: "webllm:test-model",
+      path: "local",
+    });
   });
 });
