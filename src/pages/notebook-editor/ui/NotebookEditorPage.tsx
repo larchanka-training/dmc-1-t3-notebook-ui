@@ -8,10 +8,11 @@ export function NotebookEditorPage() {
   return (
     <NotebookEditorView
       notebookId={notebookId}
-      renderBlockActionSupplement={({ notebook, block, actions }) =>
+      renderBlockActionSupplement={({ notebook, syncMeta, block, actions }) =>
         block.type === "text" ? (
           <BlockAiAction
             notebookId={notebook.id}
+            serverNotebookId={syncMeta.serverId}
             notebookTitle={notebook.title}
             blocks={notebook.blocks}
             block={block}

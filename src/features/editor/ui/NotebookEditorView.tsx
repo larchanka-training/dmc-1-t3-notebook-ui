@@ -116,6 +116,7 @@ export function NotebookEditorView({
             executionState={getBlockExecutionState(block.id)}
             actionSupplement={renderBlockActionSupplement?.({
               notebook,
+              syncMeta,
               block,
               index,
               blockCount: notebook.blocks.length,

@@ -80,6 +80,12 @@
 
 - active notebook identity, editable blocks, title, dirty markers, working copy
 
+Текущее примечание по реализации:
+
+- active editor route может указывать на local working-copy id вида `local-...`
+- server-backed identity хранится отдельно в sync metadata как `sync.serverId`
+- features, которые вызывают backend notebook-scoped API, должны использовать server-backed id, если он существует, а не считать route id durable server id
+
 ### `blockUiStore`
 
 - selected/focused block id, toolbar visibility, AI prompt visibility, draft UI flags

@@ -18,6 +18,19 @@ function isServerBackedNotebookId(notebookId: string | null): notebookId is stri
   return typeof notebookId === "string" && UUID_RE.test(notebookId);
 }
 
+function resolveAiNotebookId(
+  notebookId: string | null,
+  serverNotebookId: string | null,
+): string | null {
+  if (isServerBackedNotebookId(serverNotebookId)) {
+    return serverNotebookId;
+  }
+  if (isServerBackedNotebookId(notebookId)) {
+    return notebookId;
+  }
+  return null;
+}
+
 function mapAiErrorKind(code: AiErrorCode): AiErrorClass {
   switch (code) {
     case "AI_INVALID_REQUEST":
@@ -98,6 +111,7 @@ function errorKindLabel(kind: AiErrorClass): string {
 
 export function useBlockAiAction({
   notebookId,
+  serverNotebookId,
   notebookTitle,
   blocks,
   block,
@@ -112,6 +126,7 @@ export function useBlockAiAction({
   );
 
   const runGenerate = useCallback(async () => {
+    const aiNotebookId = resolveAiNotebookId(notebookId, serverNotebookId);
     const context = buildAiRequestContext({
       blocks,
       sourceBlock: block,
@@ -126,7 +141,7 @@ export function useBlockAiAction({
       warnings: [],
     }));
 
-    if (!isServerBackedNotebookId(notebookId)) {
+    if (aiNotebookId === null) {
       setState((previous) => ({
         ...previous,
         status: "error",
@@ -143,7 +158,7 @@ export function useBlockAiAction({
 
     try {
       const response = await generateCodeBlock({
-        notebookId,
+        notebookId: aiNotebookId,
         sourceBlockId: block.id,
         mode: "generate",
         prompt: context.prompt,
@@ -177,7 +192,7 @@ export function useBlockAiAction({
         error: nextError,
       }));
     }
-  }, [block, blocks, notebookId, notebookTitle, onInsertCode]);
+  }, [block, blocks, notebookId, serverNotebookId, notebookTitle, onInsertCode]);
 
   const canGenerate = state.status !== "submitting" && derived.prompt.length > 0;
   const isSubmitting = state.status === "submitting";
