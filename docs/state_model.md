@@ -92,6 +92,12 @@ Derived state is computed from base state and should not usually be persisted:
 - dirty markers
 - local working copy data
 
+Current implementation note:
+
+- the active editor route may point to a local working-copy id such as `local-...`
+- server-backed identity is tracked separately in sync metadata as `sync.serverId`
+- features that call backend notebook-scoped APIs must use the server-backed id when it exists instead of assuming the route id is the durable server id
+
 ### `blockUiStore`
 
 - selected block id

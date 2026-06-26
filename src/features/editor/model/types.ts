@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { Notebook, NotebookBlock } from "@/entities/notebook";
+import type { Notebook, NotebookBlock, NotebookSyncMeta } from "@/entities/notebook";
 
 export type BlockActions = {
   addBlockBefore: (blockId: string, type: NotebookBlock["type"]) => void;
@@ -17,6 +17,7 @@ export type BlockActions = {
 
 export type NotebookBlockRenderArgs = {
   notebook: Notebook;
+  syncMeta: NotebookSyncMeta;
   block: NotebookBlock;
   index: number;
   blockCount: number;

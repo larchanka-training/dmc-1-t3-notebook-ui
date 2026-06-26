@@ -52,6 +52,7 @@ export type AiRelevantBlock = {
 
 export type BlockAiActionProps = {
   notebookId: string | null;
+  serverNotebookId: string | null;
   notebookTitle: string;
   blocks: NotebookBlock[];
   block: TextBlock;
