@@ -2,8 +2,12 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "../../../../test/msw/server";
+import {
+  LocalAiRuntimeController,
+  setLocalAiRuntimeControllerForTests,
+} from "@/features/ai/model";
 import { NotebookEditorPage } from "@/pages/notebook-editor";
 
 const TEST_API_BASE =
@@ -24,6 +28,25 @@ function createDeferred<T>() {
 }
 
 describe("NotebookEditorPage", () => {
+  beforeEach(() => {
+    vi.unstubAllEnvs();
+    setLocalAiRuntimeControllerForTests(
+      new LocalAiRuntimeController({
+        getConfig: () => ({
+          enabled: false,
+          rolloutPolicy: "disabled",
+          modelId: "test-model",
+          bootstrapTimeoutMs: 50,
+          moduleSpecifier: "@mlc-ai/web-llm",
+        }),
+      }),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("renders the notebook editor shell with route notebook id", () => {
     const router = createMemoryRouter(
       [
@@ -89,7 +112,7 @@ describe("NotebookEditorPage", () => {
       screen.getByRole("button", { name: "Generate code from blk_intro" }),
     );
 
-    expect(screen.getByText("Submitting · scope: this")).toBeInTheDocument();
+    expect(screen.getByText("Submitting via bedrock · scope: this")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Generate code from blk_intro" }),
     ).toBeDisabled();
@@ -179,7 +202,7 @@ describe("NotebookEditorPage", () => {
       screen.getByRole("button", { name: "Generate code from blk_intro" }),
     );
 
-    expect(await screen.findByText("Ready · scope: this")).toBeInTheDocument();
+    expect(await screen.findByText("Ready via bedrock · scope: this")).toBeInTheDocument();
     expect(
       screen.getByLabelText("Generated code preview for blk_intro"),
     ).toHaveTextContent("function summarizeOrders");
@@ -245,7 +268,7 @@ describe("NotebookEditorPage", () => {
       screen.getByRole("button", { name: "Generate code from blk_observation" }),
     );
 
-    expect(await screen.findByText("Ready · scope: this")).toBeInTheDocument();
+    expect(await screen.findByText("Ready via bedrock · scope: this")).toBeInTheDocument();
     expect(screen.getAllByLabelText("JavaScript code block")).toHaveLength(3);
     expect(screen.getByText("Request: air_success_4")).toBeInTheDocument();
   });
@@ -288,7 +311,7 @@ describe("NotebookEditorPage", () => {
     );
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Policy: This action accepts only code-generation or code-revision requests.",
+      "Policy via bedrock: This action accepts only code-generation or code-revision requests.",
     );
     expect(screen.getByText("Request: air_error_1")).toBeInTheDocument();
     expect(markdownInput).toHaveValue(
@@ -324,9 +347,385 @@ describe("NotebookEditorPage", () => {
       screen.getByRole("button", { name: "Generate code from blk_intro" }),
     );
 
+    const introAiAction = screen.getByLabelText("AI action for blk_intro");
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Validation: AI generation requires a synced notebook available on the server.",
+      "Validation via bedrock: AI generation requires a synced notebook available on the server.",
     );
     expect(requestSpy).not.toHaveBeenCalled();
+    expect(within(introAiAction).getByText("Local WebLLM")).toBeInTheDocument();
+    expect(
+      within(introAiAction).getByRole("button", {
+        name: "Generate code locally from blk_intro",
+      }),
+    ).toBeDisabled();
+    expect(
+      within(introAiAction).getByText(
+        "Backend AI requires a synced notebook. Prepare WebLLM to generate locally for this draft.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("prepares WebLLM and runs explicit local generation with provider labeling", async () => {
+    vi.stubEnv("VITE_WEBLLM_LOCAL_MODE_ENABLED", "true");
+    vi.stubEnv("VITE_WEBLLM_LOCAL_MODE_ROLLOUT_POLICY", "public-opt-in");
+    setLocalAiRuntimeControllerForTests(
+      new LocalAiRuntimeController({
+        getConfig: () => ({
+          enabled: true,
+          rolloutPolicy: "public-opt-in",
+          modelId: "test-model",
+          bootstrapTimeoutMs: 50,
+          moduleSpecifier: "@mlc-ai/web-llm",
+        }),
+        checkCapability: async () => ({ supported: true }),
+        loadModule: async () => ({
+          CreateMLCEngine: async () => ({
+            chat: {
+              completions: {
+                create: async () => ({
+                  choices: [
+                    {
+                      message: {
+                        content:
+                          "```js\nconst localTotal = orders.reduce((sum, order) => sum + order.total, 0);\n```",
+                      },
+                    },
+                  ],
+                }),
+              },
+            },
+          }),
+        }),
+      }),
+    );
+
+    const user = userEvent.setup();
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/notebooks/:notebookId",
+          element: <NotebookEditorPage />,
+        },
+      ],
+      { initialEntries: [`/notebooks/${SERVER_NOTEBOOK_ID}`] },
+    );
+
+    render(<RouterProvider router={router} />);
+
+    const introAiAction = screen.getByLabelText("AI action for blk_intro");
+    expect(within(introAiAction).getByText("Local WebLLM")).toBeInTheDocument();
+    await user.click(
+      within(introAiAction).getByRole("button", {
+        name: "Prepare WebLLM local mode for blk_intro",
+      }),
+    );
+
+    expect(
+      await within(screen.getByLabelText("AI action for blk_intro")).findByText(
+        "Local mode ready via webllm:test-model.",
+      ),
+    ).toBeInTheDocument();
+
+    await user.click(
+      within(screen.getByLabelText("AI action for blk_intro")).getByRole("button", {
+        name: "Generate code locally from blk_intro",
+      }),
+    );
+
+    expect(await screen.findByText("Ready via webllm:test-model · scope: this")).toBeInTheDocument();
+    expect(screen.getByLabelText("Generated code preview for blk_intro")).toHaveTextContent(
+      "const localTotal = orders.reduce((sum, order) => sum + order.total, 0);",
+    );
+    expect(screen.getByText("Generated draft · webllm:test-model")).toBeInTheDocument();
+  });
+
+  it("surfaces unsupported WebLLM runtime as a frontend-local local-mode failure", async () => {
+    vi.stubEnv("VITE_WEBLLM_LOCAL_MODE_ENABLED", "true");
+    vi.stubEnv("VITE_WEBLLM_LOCAL_MODE_ROLLOUT_POLICY", "public-opt-in");
+    setLocalAiRuntimeControllerForTests(
+      new LocalAiRuntimeController({
+        getConfig: () => ({
+          enabled: true,
+          rolloutPolicy: "public-opt-in",
+          modelId: "test-model",
+          bootstrapTimeoutMs: 50,
+          moduleSpecifier: "@mlc-ai/web-llm",
+        }),
+        checkCapability: async () => ({
+          supported: false,
+          error: {
+            code: "unsupported_environment",
+            message: "No compatible adapter.",
+            retryable: false,
+          },
+        }),
+      }),
+    );
+
+    const user = userEvent.setup();
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/notebooks/:notebookId",
+          element: <NotebookEditorPage />,
+        },
+      ],
+      { initialEntries: [`/notebooks/${SERVER_NOTEBOOK_ID}`] },
+    );
+
+    render(<RouterProvider router={router} />);
+
+    const introAiAction = screen.getByLabelText("AI action for blk_intro");
+    await user.click(
+      within(introAiAction).getByRole("button", {
+        name: "Prepare WebLLM local mode for blk_intro",
+      }),
+    );
+
+    expect(await within(introAiAction).findByText("No compatible adapter.")).toBeInTheDocument();
+    expect(
+      within(introAiAction).getByRole("button", {
+        name: "Generate code locally from blk_intro",
+      }),
+    ).toBeDisabled();
+    expect(
+      screen.queryByLabelText("Generated code preview for blk_intro"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("surfaces WebLLM bootstrap failure without mutating notebook content", async () => {
+    vi.stubEnv("VITE_WEBLLM_LOCAL_MODE_ENABLED", "true");
+    vi.stubEnv("VITE_WEBLLM_LOCAL_MODE_ROLLOUT_POLICY", "public-opt-in");
+    setLocalAiRuntimeControllerForTests(
+      new LocalAiRuntimeController({
+        getConfig: () => ({
+          enabled: true,
+          rolloutPolicy: "public-opt-in",
+          modelId: "test-model",
+          bootstrapTimeoutMs: 50,
+          moduleSpecifier: "@mlc-ai/web-llm",
+        }),
+        checkCapability: async () => ({ supported: true }),
+        loadModule: async () => {
+          throw new Error("Model bootstrap crashed.");
+        },
+      }),
+    );
+
+    const user = userEvent.setup();
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/notebooks/:notebookId",
+          element: <NotebookEditorPage />,
+        },
+      ],
+      { initialEntries: [`/notebooks/${SERVER_NOTEBOOK_ID}`] },
+    );
+
+    render(<RouterProvider router={router} />);
+
+    const introAiAction = screen.getByLabelText("AI action for blk_intro");
+    const markdownInput = screen.getByLabelText("Markdown source for blk_intro");
+    await user.click(
+      within(introAiAction).getByRole("button", {
+        name: "Prepare WebLLM local mode for blk_intro",
+      }),
+    );
+
+    expect(await within(introAiAction).findByText("Model bootstrap crashed.")).toBeInTheDocument();
+    expect(markdownInput).toHaveValue(
+      "## Explore order totals\nUse Markdown notes to explain the intent before running JavaScript examples.",
+    );
+    expect(screen.getAllByLabelText("JavaScript code block")).toHaveLength(2);
+    expect(
+      screen.queryByLabelText("Generated code preview for blk_intro"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("allows explicit local generation for an unsynced local notebook draft", async () => {
+    vi.stubEnv("VITE_WEBLLM_LOCAL_MODE_ENABLED", "true");
+    vi.stubEnv("VITE_WEBLLM_LOCAL_MODE_ROLLOUT_POLICY", "public-opt-in");
+    const requestSpy = vi.fn();
+    setLocalAiRuntimeControllerForTests(
+      new LocalAiRuntimeController({
+        getConfig: () => ({
+          enabled: true,
+          rolloutPolicy: "public-opt-in",
+          modelId: "test-model",
+          bootstrapTimeoutMs: 50,
+          moduleSpecifier: "@mlc-ai/web-llm",
+        }),
+        checkCapability: async () => ({ supported: true }),
+        loadModule: async () => ({
+          CreateMLCEngine: async () => ({
+            chat: {
+              completions: {
+                create: async () => ({
+                  choices: [
+                    {
+                      message: {
+                        content: "const draftResult = 'local-only';",
+                      },
+                    },
+                  ],
+                }),
+              },
+            },
+          }),
+        }),
+      }),
+    );
+
+    server.use(
+      http.post(AI_GENERATE_URL, async ({ request }) => {
+        requestSpy(await request.json());
+        return HttpResponse.json({}, { status: 500 });
+      }),
+    );
+
+    const user = userEvent.setup();
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/notebooks/:notebookId",
+          element: <NotebookEditorPage />,
+        },
+      ],
+      { initialEntries: ["/notebooks/local-draft-1"] },
+    );
+
+    render(<RouterProvider router={router} />);
+
+    const introAiAction = screen.getByLabelText("AI action for blk_intro");
+    expect(
+      within(introAiAction).getByText(
+        "Backend AI requires a synced notebook. Prepare WebLLM to generate locally for this draft.",
+      ),
+    ).toBeInTheDocument();
+
+    await user.click(
+      within(introAiAction).getByRole("button", {
+        name: "Prepare WebLLM local mode for blk_intro",
+      }),
+    );
+
+    expect(
+      await within(introAiAction).findByText(
+        "Backend AI requires a synced notebook. Local mode ready via webllm:test-model.",
+      ),
+    ).toBeInTheDocument();
+
+    await user.click(
+      within(introAiAction).getByRole("button", {
+        name: "Generate code locally from blk_intro",
+      }),
+    );
+
+    expect(requestSpy).not.toHaveBeenCalled();
+    expect(await screen.findByText("Ready via webllm:test-model · scope: this")).toBeInTheDocument();
+    expect(screen.getByLabelText("Generated code preview for blk_intro")).toHaveTextContent(
+      "const draftResult = 'local-only';",
+    );
+  });
+
+  it("offers local retry after a retryable backend provider failure", async () => {
+    vi.stubEnv("VITE_WEBLLM_LOCAL_MODE_ENABLED", "true");
+    vi.stubEnv("VITE_WEBLLM_LOCAL_MODE_ROLLOUT_POLICY", "public-opt-in");
+    setLocalAiRuntimeControllerForTests(
+      new LocalAiRuntimeController({
+        getConfig: () => ({
+          enabled: true,
+          rolloutPolicy: "public-opt-in",
+          modelId: "test-model",
+          bootstrapTimeoutMs: 50,
+          moduleSpecifier: "@mlc-ai/web-llm",
+        }),
+        checkCapability: async () => ({ supported: true }),
+        loadModule: async () => ({
+          CreateMLCEngine: async () => ({
+            chat: {
+              completions: {
+                create: async () => ({
+                  choices: [
+                    {
+                      message: {
+                        content: "const fallbackTotal = orders.length;",
+                      },
+                    },
+                  ],
+                }),
+              },
+            },
+          }),
+        }),
+      }),
+    );
+
+    server.use(
+      http.post(AI_GENERATE_URL, () =>
+        HttpResponse.json(
+          {
+            requestId: "air_error_timeout",
+            status: "error",
+            errorCode: "AI_PROVIDER_TIMEOUT",
+            message: "The AI provider timed out.",
+            retryable: true,
+          },
+          { status: 504 },
+        ),
+      ),
+    );
+
+    const user = userEvent.setup();
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/notebooks/:notebookId",
+          element: <NotebookEditorPage />,
+        },
+      ],
+      { initialEntries: [`/notebooks/${SERVER_NOTEBOOK_ID}`] },
+    );
+
+    render(<RouterProvider router={router} />);
+
+    const introAiAction = screen.getByLabelText("AI action for blk_intro");
+    await user.click(
+      within(introAiAction).getByRole("button", {
+        name: "Prepare WebLLM local mode for blk_intro",
+      }),
+    );
+    expect(
+      await within(screen.getByLabelText("AI action for blk_intro")).findByText(
+        "Local mode ready via webllm:test-model.",
+      ),
+    ).toBeInTheDocument();
+
+    await user.click(
+      within(screen.getByLabelText("AI action for blk_intro")).getByRole("button", {
+        name: "Generate code from blk_intro",
+      }),
+    );
+
+    expect(await within(screen.getByLabelText("AI action for blk_intro")).findByRole("alert")).toHaveTextContent(
+      "Provider via bedrock: The AI provider timed out.",
+    );
+    expect(
+      within(screen.getByLabelText("AI action for blk_intro")).getByRole("button", {
+        name: "Generate code locally from blk_intro",
+      }),
+    ).toHaveTextContent("Retry locally with WebLLM");
+
+    await user.click(
+      within(screen.getByLabelText("AI action for blk_intro")).getByRole("button", {
+        name: "Generate code locally from blk_intro",
+      }),
+    );
+
+    expect(await screen.findByText("Ready via webllm:test-model · scope: this")).toBeInTheDocument();
+    expect(screen.getByLabelText("Generated code preview for blk_intro")).toHaveTextContent(
+      "const fallbackTotal = orders.length;",
+    );
   });
 });

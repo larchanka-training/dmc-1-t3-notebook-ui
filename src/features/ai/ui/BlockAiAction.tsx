@@ -11,11 +11,20 @@ export function BlockAiAction(props: BlockAiActionProps) {
     scope,
     isSubmitting,
     canGenerate,
+    localModeEnabled,
+    localRuntimeStatus,
+    localRuntimeSummary,
+    canPrepareLocal,
+    canGenerateLocally,
+    canRetryLocally,
     successPreview,
     warnings,
+    provider,
     errorSummary,
     requestId,
     onGenerate,
+    onGenerateLocally,
+    onPrepareLocalMode,
   } = useBlockAiAction(props);
 
   return (
@@ -35,6 +44,47 @@ export function BlockAiAction(props: BlockAiActionProps) {
         <Sparkles aria-hidden="true" />
         {isSubmitting ? "Generating..." : "Generate code"}
       </Button>
+      {localModeEnabled ? (
+        <div className="rounded-md border border-border-token/70 bg-app/50 p-2">
+          <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-ink-muted">
+            Local WebLLM
+          </p>
+          {localRuntimeSummary ? (
+            <p className="mt-1 text-xs text-ink-muted">{localRuntimeSummary}</p>
+          ) : null}
+          <div className="mt-2 flex flex-col gap-2">
+            {canPrepareLocal ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                className="justify-start text-left"
+                aria-label={`Prepare WebLLM local mode for ${props.block.id}`}
+                onClick={onPrepareLocalMode}
+              >
+                Prepare WebLLM
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant="secondary"
+              size="xs"
+              className="justify-start text-left"
+              aria-label={`Generate code locally from ${props.block.id}`}
+              disabled={!canGenerateLocally || isSubmitting}
+              onClick={onGenerateLocally}
+            >
+              <Sparkles aria-hidden="true" />
+              {canRetryLocally ? "Retry locally with WebLLM" : "Generate locally"}
+            </Button>
+            {localRuntimeStatus === "loading-model" ? (
+              <Button type="button" variant="ghost" size="xs" disabled className="justify-start">
+                Preparing WebLLM...
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
       <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-ink-muted">
         {statusLabel} · scope: {scope}
       </p>
@@ -49,7 +99,7 @@ export function BlockAiAction(props: BlockAiActionProps) {
           aria-label={`Generated code preview for ${props.block.id}`}
         >
           <p className="mb-2 text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-            Generated draft
+            Generated draft{provider ? ` · ${provider.label}` : ""}
           </p>
           <pre className="overflow-x-auto whitespace-pre-wrap break-words text-xs text-ink">
             <code>{successPreview}</code>
