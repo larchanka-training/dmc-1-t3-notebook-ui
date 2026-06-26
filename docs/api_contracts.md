@@ -396,7 +396,7 @@ Success response:
   "code": "const response = await fetch(apiBaseUrl);\nconst data = await response.json();\nconsole.log(data);",
   "provider": {
     "name": "bedrock",
-    "model": "anthropic.claude-3-haiku"
+    "model": "deepseek.v3.2"
   },
   "validation": {
     "extractionApplied": true,

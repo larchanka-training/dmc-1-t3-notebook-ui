@@ -99,7 +99,7 @@ describe("NotebookEditorPage", () => {
         requestId: "air_success_2",
         status: "success",
         code: "const total = orders.reduce((sum, order) => sum + order.total, 0);",
-        provider: { name: "bedrock", model: "anthropic.claude-3-haiku" },
+        provider: { name: "bedrock", model: "deepseek.v3.2" },
         validation: {
           extractionApplied: true,
           syntaxOk: true,
@@ -139,7 +139,7 @@ describe("NotebookEditorPage", () => {
           requestId: "air_success_3",
           status: "success",
           code: "function summarizeOrders(orders) { return orders.map((order) => order.total); }",
-          provider: { name: "bedrock", model: "anthropic.claude-3-haiku" },
+          provider: { name: "bedrock", model: "deepseek.v3.2" },
           validation: {
             extractionApplied: true,
             syntaxOk: true,
@@ -207,7 +207,7 @@ describe("NotebookEditorPage", () => {
           requestId: "air_success_4",
           status: "success",
           code: "const average = total / orders.length;",
-          provider: { name: "bedrock", model: "anthropic.claude-3-haiku" },
+          provider: { name: "bedrock", model: "deepseek.v3.2" },
           validation: {
             extractionApplied: true,
             syntaxOk: true,
