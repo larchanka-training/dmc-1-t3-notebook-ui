@@ -20,6 +20,7 @@ The application has a fixed Version 1 route model:
 
 - `/login`
 - `/notebooks`
+- `/help`
 - `/notebooks/:notebookId`
 
 The UI already uses the data-router pattern in `src/app/routes.tsx` and `src/App.tsx`.

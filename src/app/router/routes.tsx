@@ -3,6 +3,7 @@ import { AppLayout } from "../ui/AppLayout";
 import { LoginPage } from "@/pages/login";
 import { NotebooksListPage } from "@/pages/notebooks-list";
 import { NotebookEditorPage } from "@/pages/notebook-editor";
+import { HelpPage } from "@/pages/help";
 import { RequireAuth } from "./RequireAuth";
 
 export const routes: RouteObject[] = [
@@ -16,6 +17,7 @@ export const routes: RouteObject[] = [
         children: [
           { path: "notebooks", element: <NotebooksListPage /> },
           { path: "notebooks/:notebookId", element: <NotebookEditorPage /> },
+          { path: "help", element: <HelpPage /> },
         ],
       },
       { path: "*", element: <Navigate to="/login" replace /> },

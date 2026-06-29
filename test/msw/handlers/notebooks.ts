@@ -34,4 +34,49 @@ export const notebooksHandlers = [
     }
     return HttpResponse.json(notebook);
   }),
+  http.patch(`${API}/:id`, async ({ params, request }) => {
+    const notebook = notebooks.get(params.id as string);
+    if (!notebook) {
+      return HttpResponse.json(
+        { error: { code: "not_found", message: "Notebook not found" } },
+        { status: 404 },
+      );
+    }
+
+    const payload = (await request.json()) as { title?: string };
+    const title = payload.title?.trim() || notebook.title;
+    const updatedNotebook: ServerNotebook = {
+      ...notebook,
+      title,
+      updated_at: new Date().toISOString(),
+    };
+    notebooks.set(updatedNotebook.id, updatedNotebook);
+    listResponse = listResponse.map((summary) =>
+      summary.id === updatedNotebook.id
+        ? {
+            ...summary,
+            title: updatedNotebook.title,
+            updated_at: updatedNotebook.updated_at,
+          }
+        : summary,
+    );
+
+    return HttpResponse.json(updatedNotebook);
+  }),
+  http.delete(`${API}/:id`, ({ params }) => {
+    const notebookId = params.id as string;
+    if (
+      !notebooks.has(notebookId) &&
+      !listResponse.some((summary) => summary.id === notebookId)
+    ) {
+      return HttpResponse.json(
+        { error: { code: "not_found", message: "Notebook not found" } },
+        { status: 404 },
+      );
+    }
+
+    notebooks.delete(notebookId);
+    listResponse = listResponse.filter((summary) => summary.id !== notebookId);
+    return new HttpResponse(null, { status: 204 });
+  }),
 ];

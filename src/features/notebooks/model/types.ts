@@ -12,5 +12,11 @@ export interface NotebookListSlice {
   };
   setNotebookList: (items: NotebookListItem[]) => void;
   setNotebookListStatus: (status: NotebookListStatus, error?: string | null) => void;
+  removeNotebookListItem: (localId: string | null, serverId: string | null) => void;
+  updateNotebookListItemTitle: (
+    localId: string,
+    serverId: string | null,
+    title: string,
+  ) => void;
   createNotebook: (title?: string) => NotebookListItem;
 }

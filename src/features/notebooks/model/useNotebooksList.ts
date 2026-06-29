@@ -1,13 +1,18 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppStore } from "@/app/model";
 import {
+  createLocalDraftNotebook,
   createLocalNotebookRepository,
   DEFAULT_SYNC_META,
   type NotebookRepository,
   type ServerNotebookSummary,
 } from "@/entities/notebook";
-import { fetchServerVersion, listServerNotebooks } from "@/features/sync";
+import {
+  deleteServerNotebook,
+  fetchServerVersion,
+  listServerNotebooks,
+} from "@/features/sync";
 import { mergeNotebookList, type NotebookListItem } from "./mergeNotebookList";
 
 type UseNotebooksListOptions = {
@@ -21,7 +26,10 @@ export function useNotebooksList(options: UseNotebooksListOptions = {}) {
   const createNotebook = useAppStore((s) => s.createNotebook);
   const setNotebookList = useAppStore((s) => s.setNotebookList);
   const setNotebookListStatus = useAppStore((s) => s.setNotebookListStatus);
+  const removeNotebookListItem = useAppStore((s) => s.removeNotebookListItem);
   const navigate = useNavigate();
+  const [pendingDeleteKey, setPendingDeleteKey] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const repositoryRef = useRef<NotebookRepository>(
     options.repository ?? defaultNotebookRepository,
@@ -44,7 +52,18 @@ export function useNotebooksList(options: UseNotebooksListOptions = {}) {
       if (cancelled) {
         return;
       }
-      setNotebookList(mergeNotebookList(local, server));
+      const loadedItems = mergeNotebookList(local, server);
+      const currentItems = useAppStore.getState().notebookList.items;
+      const itemsByKey = new Map<string, NotebookListItem>();
+
+      for (const item of currentItems) {
+        itemsByKey.set(`${item.id ?? "null"}::${item.serverId ?? "null"}`, item);
+      }
+      for (const item of loadedItems) {
+        itemsByKey.set(`${item.id ?? "null"}::${item.serverId ?? "null"}`, item);
+      }
+
+      setNotebookList(Array.from(itemsByKey.values()));
       setNotebookListStatus("idle");
     })();
 
@@ -55,12 +74,23 @@ export function useNotebooksList(options: UseNotebooksListOptions = {}) {
 
   function onCreateNotebook() {
     const notebook = createNotebook();
-    navigate(`/notebooks/${notebook.id}`);
+    if (!notebook.id) {
+      return;
+    }
+    const notebookId = notebook.id;
+
+    void (async () => {
+      await repositoryRef.current.save(
+        createLocalDraftNotebook(notebookId, notebook.title),
+        DEFAULT_SYNC_META,
+      );
+      navigate(`/notebooks/${notebookId}`);
+    })();
   }
 
   async function onOpen(item: NotebookListItem) {
     if (item.origin === "remote-only" && item.serverId) {
-      const newLocalId = `local-${Date.now().toString(36)}`;
+      const newLocalId = Date.now().toString(36);
       const notebook = await fetchServerVersion(item.serverId, newLocalId);
       await repositoryRef.current.save(notebook, {
         ...DEFAULT_SYNC_META,
@@ -77,11 +107,43 @@ export function useNotebooksList(options: UseNotebooksListOptions = {}) {
     }
   }
 
+  async function onDelete(item: NotebookListItem) {
+    const confirmed = globalThis.confirm?.(`Delete notebook "${item.title}"?`) ?? true;
+    if (!confirmed) {
+      return;
+    }
+
+    const itemKey = item.id ?? item.serverId;
+    if (!itemKey) {
+      return;
+    }
+
+    setPendingDeleteKey(itemKey);
+    setDeleteError(null);
+
+    try {
+      if (item.serverId) {
+        await deleteServerNotebook(item.serverId);
+      }
+      if (item.id) {
+        await repositoryRef.current.remove(item.id);
+      }
+      removeNotebookListItem(item.id, item.serverId);
+    } catch {
+      setDeleteError(`Failed to delete "${item.title}".`);
+    } finally {
+      setPendingDeleteKey(null);
+    }
+  }
+
   return {
     items,
     status,
     error,
+    pendingDeleteKey,
+    deleteError,
     onCreateNotebook,
     onOpen,
+    onDelete,
   };
 }

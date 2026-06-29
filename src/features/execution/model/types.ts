@@ -116,6 +116,8 @@ export interface ExecutionState {
   activeCommand: ExecutionCommandType | null;
   targetBlockId: string | null;
   runningBlockIds: string[];
+  executionOrderByBlockId: Record<string, number>;
+  nextExecutionOrder: number;
   outputs: Record<string, ExecutionOutput[]>;
   error: NormalizedExecutionError | null;
 }
@@ -126,6 +128,8 @@ export const initialExecutionState: ExecutionState = {
   activeCommand: null,
   targetBlockId: null,
   runningBlockIds: [],
+  executionOrderByBlockId: {},
+  nextExecutionOrder: 1,
   outputs: {},
   error: null,
 };

@@ -1,7 +1,7 @@
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { useAppStore } from "@/app/model";
 import {
   createLocalNotebookRepository,
@@ -24,6 +24,10 @@ function authenticate() {
 }
 
 describe("NotebooksListPage", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("creates a notebook and navigates to the editor route", async () => {
     const user = userEvent.setup();
     authenticate();
@@ -70,8 +74,40 @@ describe("NotebooksListPage", () => {
 
     render(<RouterProvider router={router} />);
 
-    await user.click(await screen.findByRole("button", { name: /My notebook/i }));
+    await user.click(await screen.findByRole("button", { name: /^My notebook/i }));
 
     expect(await screen.findByText("Editor nb_existing")).toBeInTheDocument();
+  });
+
+  it("deletes an existing local notebook from the list page", async () => {
+    vi.stubGlobal(
+      "confirm",
+      vi.fn(() => true),
+    );
+    authenticate();
+
+    const repository = createLocalNotebookRepository();
+    await repository.save(
+      { ...sampleNotebook, id: "nb_delete", title: "Delete me" },
+      DEFAULT_SYNC_META,
+    );
+
+    const router = createMemoryRouter(
+      [{ path: "/notebooks", element: <NotebooksListPage /> }],
+      {
+        initialEntries: ["/notebooks"],
+      },
+    );
+
+    render(<RouterProvider router={router} />);
+
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("button", { name: "Delete Delete me" }));
+
+    expect(
+      screen.queryByRole("button", { name: /Delete me/i }),
+    ).not.toBeInTheDocument();
+    expect(await repository.load("nb_delete")).toBeUndefined();
   });
 });

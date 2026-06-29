@@ -62,12 +62,13 @@ UI-примитивы Version 1 — **[shadcn/ui](https://ui.shadcn.com/)**; у�
 
 ### UX и QA
 
-| EN                      | RU companion              |
-| ----------------------- | ------------------------- |
-| `screen_specs.md`       | `screen_specsRU.md`       |
-| `design_tokens.md`      | `design_tokensRU.md`      |
-| `page_design_scheme.md` | `page_design_schemeRU.md` |
-| `testing_strategy.md`   | `testing_strategyRU.md`   |
+| EN                           | RU companion                   |
+| ---------------------------- | ------------------------------ |
+| `screen_specs.md`            | `screen_specsRU.md`            |
+| `notebook_editor_sidebar.md` | `notebook_editor_sidebarRU.md` |
+| `design_tokens.md`           | `design_tokensRU.md`           |
+| `page_design_scheme.md`      | `page_design_schemeRU.md`      |
+| `testing_strategy.md`        | `testing_strategyRU.md`        |
 
 ### ADR
 

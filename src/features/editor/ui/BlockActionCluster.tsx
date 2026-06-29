@@ -1,12 +1,8 @@
 import type { NotebookBlock } from "@/entities/notebook";
+import { Trash2, MoveUp, MoveDown, Braces, Type } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "@/shared/ui";
 import { cn } from "@/shared/lib";
-import {
-  blockActionButtonClass,
-  editorRunButtonClass,
-  editorSecondaryButtonClass,
-} from "../lib/editorStyles";
 import type { BlockActions } from "../model/types";
 
 type BlockActionClusterProps = {
@@ -17,12 +13,53 @@ type BlockActionClusterProps = {
   executionState: {
     isRunning: boolean;
     isTarget: boolean;
+    executionOrder: number | null;
     canRun: boolean;
     canRunFromHere: boolean;
     canStop: boolean;
   };
-  actionSupplement?: ReactNode;
 };
+
+type IconButtonProps = {
+  label: string;
+  title: string;
+  disabled?: boolean;
+  onClick: () => void;
+  children: ReactNode;
+  variant?: "default" | "destructive";
+  className?: string;
+};
+
+function ToolbarIconButton({
+  label,
+  title,
+  disabled = false,
+  onClick,
+  children,
+  variant = "default",
+  className,
+}: IconButtonProps) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="xs"
+      className={cn(
+        "h-6 w-6 min-h-0 p-0",
+        variant === "destructive"
+          ? "text-ink-muted hover:bg-destructive/8 hover:text-destructive"
+          : "text-ink-muted hover:bg-surface hover:text-ink",
+        className,
+      )}
+      aria-label={label}
+      title={title}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      {children}
+    </Button>
+  );
+}
 
 export function BlockActionCluster({
   block,
@@ -30,140 +67,49 @@ export function BlockActionCluster({
   isLast,
   actions,
   executionState,
-  actionSupplement,
 }: BlockActionClusterProps) {
+  const blockTypeLabel = block.type === "text" ? "Text block" : "Code block";
+
   return (
     <div
-      className="sticky top-[4.75rem] flex flex-wrap justify-end gap-1 opacity-72 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 max-md:static max-md:order-2 max-md:w-full max-md:justify-start"
+      className={cn(
+        "absolute right-2 top-1.5 z-[2] inline-flex items-center gap-0.5 rounded-md border border-border-token/40 bg-surface/95 p-0.5 shadow-sm",
+      )}
       aria-label={`Actions for ${block.id}`}
     >
-      <div className="contents" aria-label={`Add block above ${block.id}`}>
-        <Button
-          type="button"
-          variant="outline"
-          size="xs"
-          className={cn(editorSecondaryButtonClass, blockActionButtonClass)}
-          aria-label={`Add text block above ${block.id}`}
-          disabled={!executionState.canRun}
-          onClick={() => actions.addBlockBefore(block.id, "text")}
-        >
-          + Text ↑
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="xs"
-          className={cn(editorSecondaryButtonClass, blockActionButtonClass)}
-          aria-label={`Add code block above ${block.id}`}
-          disabled={!executionState.canRun}
-          onClick={() => actions.addBlockBefore(block.id, "code")}
-        >
-          + Code ↑
-        </Button>
+      <div className="inline-flex items-center gap-1 rounded-[calc(var(--radius)-2px)] bg-editor/42 px-2 py-1 text-[0.6875rem] font-semibold tracking-[0.08em] text-ink-muted">
+        {block.type === "text" ? (
+          <Type className="size-3" aria-hidden="true" />
+        ) : (
+          <Braces className="size-3" aria-hidden="true" />
+        )}
+        <span>{blockTypeLabel}</span>
       </div>
-      <div className="contents" aria-label={`Add block below ${block.id}`}>
-        <Button
-          type="button"
-          variant="outline"
-          size="xs"
-          className={cn(editorSecondaryButtonClass, blockActionButtonClass)}
-          aria-label={`Add text block below ${block.id}`}
-          disabled={!executionState.canRun}
-          onClick={() => actions.addBlockAfter(block.id, "text")}
-        >
-          + Text ↓
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="xs"
-          className={cn(editorSecondaryButtonClass, blockActionButtonClass)}
-          aria-label={`Add code block below ${block.id}`}
-          disabled={!executionState.canRun}
-          onClick={() => actions.addBlockAfter(block.id, "code")}
-        >
-          + Code ↓
-        </Button>
-      </div>
-      <Button
-        type="button"
-        variant="outline"
-        size="xs"
-        className={cn(editorSecondaryButtonClass, blockActionButtonClass)}
-        aria-label={`Move ${block.id} up`}
+      <ToolbarIconButton
+        label={`Move ${block.id} up`}
+        title="Move up"
         disabled={isFirst || !executionState.canRun}
         onClick={() => actions.moveBlockById(block.id, "up")}
       >
-        Up
-      </Button>
-      <Button
-        type="button"
-        variant="outline"
-        size="xs"
-        className={cn(editorSecondaryButtonClass, blockActionButtonClass)}
-        aria-label={`Move ${block.id} down`}
+        <MoveUp className="size-3.5" aria-hidden="true" />
+      </ToolbarIconButton>
+      <ToolbarIconButton
+        label={`Move ${block.id} down`}
+        title="Move down"
         disabled={isLast || !executionState.canRun}
         onClick={() => actions.moveBlockById(block.id, "down")}
       >
-        Down
-      </Button>
-      <Button
-        type="button"
-        variant="outline"
-        size="xs"
-        className={cn(editorSecondaryButtonClass, blockActionButtonClass)}
-        aria-label={`Delete ${block.id}`}
+        <MoveDown className="size-3.5" aria-hidden="true" />
+      </ToolbarIconButton>
+      <ToolbarIconButton
+        label={`Delete ${block.id}`}
+        title="Delete block"
         disabled={!executionState.canRun}
         onClick={() => actions.deleteBlockById(block.id)}
+        variant="destructive"
       >
-        Delete
-      </Button>
-      {actionSupplement}
-      {block.type === "code" ? (
-        <>
-          {executionState.isRunning || executionState.isTarget ? (
-            <span
-              className="inline-flex min-h-8 items-center rounded-md border border-border-token/80 bg-surface px-2 text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-ink-muted"
-              aria-label={`Execution state for ${block.id}`}
-            >
-              {executionState.isRunning ? "Running" : "Queued"}
-            </span>
-          ) : null}
-          <Button
-            type="button"
-            variant="outline"
-            size="xs"
-            className={cn(editorRunButtonClass, blockActionButtonClass)}
-            aria-label={`Run ${block.id}`}
-            disabled={!executionState.canRun}
-            onClick={() => actions.runBlock(block.id)}
-          >
-            Run
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="xs"
-            className={cn(editorRunButtonClass, blockActionButtonClass)}
-            aria-label={`Run from here ${block.id}`}
-            disabled={!executionState.canRunFromHere}
-            onClick={() => actions.runFromHere(block.id)}
-          >
-            From here
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="xs"
-            className={cn(editorRunButtonClass, blockActionButtonClass)}
-            aria-label={`Stop ${block.id}`}
-            disabled={!executionState.canStop}
-            onClick={() => actions.stopExecution()}
-          >
-            Stop
-          </Button>
-        </>
-      ) : null}
+        <Trash2 className="size-3.5" aria-hidden="true" />
+      </ToolbarIconButton>
     </div>
   );
 }

@@ -1,20 +1,11 @@
+import type { ReactNode } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
-import type { Notebook } from "@/entities/notebook";
 import type { NotebookSyncStatus } from "@/entities/notebook";
 import { NotebookEditorToolbar } from "./NotebookEditorToolbar";
 import type { BlockActions } from "../model/types";
-
-const notebook: Notebook = {
-  id: "nb_1",
-  title: "Toolbar notebook",
-  revision: 1,
-  createdAt: "2026-06-18T10:00:00.000Z",
-  updatedAt: "2026-06-18T10:00:00.000Z",
-  blocks: [],
-};
 
 const noopActions: BlockActions = {
   addBlockBefore: vi.fn(),
@@ -34,13 +25,13 @@ const renderToolbar = (
   overrides: Partial<{
     syncStatus: NotebookSyncStatus;
     onSync: () => void;
+    statusSupplement: ReactNode;
   }> = {},
 ) => {
   const onSync = overrides.onSync ?? vi.fn();
   render(
     <MemoryRouter>
       <NotebookEditorToolbar
-        notebook={notebook}
         lastBlockId=""
         actions={noopActions}
         executionMessage="Execution idle"
@@ -49,6 +40,7 @@ const renderToolbar = (
         canStopExecution={false}
         syncStatus={overrides.syncStatus ?? "unsynced"}
         onSync={onSync}
+        statusSupplement={overrides.statusSupplement}
       />
     </MemoryRouter>,
   );
@@ -68,11 +60,29 @@ describe("NotebookEditorToolbar sync", () => {
 
   it("shows the sync status label", () => {
     renderToolbar({ syncStatus: "conflict" });
+    expect(screen.getByTestId("sync-status")).toHaveTextContent("Sync status");
     expect(screen.getByTestId("sync-status")).toHaveTextContent("Sync conflict");
   });
 
   it("disables the Sync button while syncing", () => {
     renderToolbar({ syncStatus: "syncing" });
     expect(screen.getByRole("button", { name: /sync/i })).toBeDisabled();
+  });
+
+  it("renders a separate runtime status surface", () => {
+    renderToolbar();
+
+    expect(screen.getByLabelText("Runtime status")).toHaveTextContent("Runtime status");
+    expect(screen.getByLabelText("Runtime status")).toHaveTextContent("Execution idle");
+  });
+
+  it("renders an optional supplemental top-bar status surface", () => {
+    renderToolbar({
+      statusSupplement: <div aria-label="Local AI status">Local AI Ready</div>,
+    });
+
+    expect(screen.getByLabelText("Local AI status")).toHaveTextContent(
+      "Local AI Ready",
+    );
   });
 });

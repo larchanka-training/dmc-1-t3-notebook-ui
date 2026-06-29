@@ -70,6 +70,8 @@ describe("auth persist", () => {
         activeCommand: "run-current",
         targetBlockId: "blk_memory",
         runningBlockIds: [],
+        executionOrderByBlockId: { blk_memory: 4 },
+        nextExecutionOrder: 5,
         outputs: {
           blk_memory: [{ type: "text", payload: "memory output" }],
         },
@@ -93,6 +95,8 @@ describe("auth persist", () => {
     expect(execution.activeCommand).toBeNull();
     expect(execution.targetBlockId).toBeNull();
     expect(execution.runningBlockIds).toEqual([]);
+    expect(execution.executionOrderByBlockId).toEqual({});
+    expect(execution.nextExecutionOrder).toBe(1);
     expect(execution.outputs).toEqual({});
     expect(execution.error).toBeNull();
   });
