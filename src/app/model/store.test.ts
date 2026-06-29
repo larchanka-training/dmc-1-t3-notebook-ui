@@ -43,6 +43,8 @@ describe("useAppStore", () => {
         activeCommand: "run-current",
         targetBlockId: "blk_1",
         runningBlockIds: ["blk_1"],
+        executionOrderByBlockId: {},
+        nextExecutionOrder: 1,
         outputs: {
           blk_1: [{ type: "text", payload: "hello" }],
         },
@@ -65,6 +67,8 @@ describe("useAppStore", () => {
     expect(state.execution.activeCommand).toBeNull();
     expect(state.execution.targetBlockId).toBeNull();
     expect(state.execution.runningBlockIds).toEqual([]);
+    expect(state.execution.executionOrderByBlockId).toEqual({});
+    expect(state.execution.nextExecutionOrder).toBe(1);
     expect(state.execution.outputs).toEqual({});
     expect(state.execution.error).toBeNull();
   });

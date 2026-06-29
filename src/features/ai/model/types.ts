@@ -1,37 +1,29 @@
 import type { NotebookBlock, TextBlock } from "@/entities/notebook";
-import type { AiWarning } from "../api/aiApi";
+import type {
+  AiGenerationErrorCode,
+  AiGenerationErrorKind,
+  AiGenerationProvider,
+  AiGenerationProviderMetadata,
+  AiGenerationWarning,
+  AiRelevantBlock,
+  AiScope,
+} from "../api/provider";
+import type {
+  LocalAiRuntimeError,
+  LocalAiRuntimeErrorCode,
+  LocalAiRuntimeSnapshot,
+  LocalAiRuntimeStatus,
+} from "./localRuntime";
 
 export type AiRequestStatus = "idle" | "submitting" | "success" | "error";
 
-export type AiScope = "this" | "notebook";
-
-export type AiErrorCode =
-  | "AI_INVALID_REQUEST"
-  | "AI_FORBIDDEN"
-  | "AI_PROMPT_REJECTED"
-  | "AI_PROMPT_UNSAFE"
-  | "AI_PROVIDER_UNAVAILABLE"
-  | "AI_PROVIDER_TIMEOUT"
-  | "AI_RESPONSE_INVALID"
-  | "AI_CODE_EXTRACTION_FAILED"
-  | "AI_CODE_SYNTAX_INVALID"
-  | "invalid_response"
-  | "request_failed";
-
-export type AiErrorClass =
-  | "validation"
-  | "forbidden"
-  | "policy"
-  | "provider"
-  | "response"
-  | "unknown";
-
 export type BlockAiErrorState = {
-  code: AiErrorCode;
+  code: AiGenerationErrorCode;
   message: string;
   retryable: boolean;
   requestId: string | null;
-  kind: AiErrorClass;
+  kind: AiGenerationErrorKind;
+  provider: AiGenerationProviderMetadata | null;
 };
 
 export type BlockAiState = {
@@ -40,20 +32,35 @@ export type BlockAiState = {
   scope: AiScope;
   lastRequestId: string | null;
   lastResponseCode: string | null;
-  warnings: AiWarning[];
+  provider: AiGenerationProviderMetadata | null;
+  warnings: AiGenerationWarning[];
   error: BlockAiErrorState | null;
 };
 
-export type AiRelevantBlock = {
-  blockId: string;
-  type: "text" | "code";
-  content: string;
-};
+export type NotebookLocalAiSurfaceStatus =
+  | "disabled"
+  | "idle"
+  | "unsupported"
+  | "preparing"
+  | "ready"
+  | "failed";
 
 export type BlockAiActionProps = {
   notebookId: string | null;
+  serverNotebookId: string | null;
   notebookTitle: string;
   blocks: NotebookBlock[];
   block: TextBlock;
   onInsertCode?: (sourceBlockId: string, code: string) => void;
+  provider?: AiGenerationProvider;
+  localProvider?: AiGenerationProvider;
+};
+
+export type {
+  AiRelevantBlock,
+  AiScope,
+  LocalAiRuntimeError,
+  LocalAiRuntimeErrorCode,
+  LocalAiRuntimeSnapshot,
+  LocalAiRuntimeStatus,
 };

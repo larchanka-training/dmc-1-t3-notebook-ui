@@ -46,6 +46,7 @@ Goal:
 Deliverables:
 
 - route shell for `/login`, `/notebooks`, `/notebooks/:notebookId`
+- authenticated help route shell for `/help`
 - app providers
 - page layout skeletons
 - baseline styles and tokens

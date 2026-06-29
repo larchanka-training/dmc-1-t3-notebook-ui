@@ -20,19 +20,20 @@ It fixes:
 
 The following UI decisions are fixed for Version 1:
 
-1. The application uses three routes:
+1. The application uses four routes:
    - `/login`
    - `/notebooks`
    - `/notebooks/:notebookId`
+   - `/help`
 2. Frontend application state is managed with `Zustand`.
 3. Text blocks are edited as `Markdown`.
 4. Code blocks are edited with `CodeMirror`.
 5. The notebook editor uses a vertical document layout.
 6. The AI flow is block-scoped and uses a selected `text` block as the Version 1 source; revising existing code goes through the documented convert-code-to-text flow first.
-7. The block action cluster is shown near the block and contains:
-   - block toolbar trigger
-   - AI action
-   - run/stop action
+7. The block action cluster is shown near the block and contains the primary action for the current block:
+   - AI action for eligible `text` blocks
+   - run/stop action for `code` blocks
+   - access to secondary block-management controls through a separate block toolbar when the block is active
 8. Output types are:
    - `text`
    - `object`
@@ -99,13 +100,13 @@ This section fixes the canonical FSD layer model, public API rules, and reposito
 
 Layers are ordered from application shell to shared infrastructure:
 
-| Layer       | Responsibility                                                                |
-| ----------- | ----------------------------------------------------------------------------- |
-| `app/`      | Bootstrap, providers, router, global styles, app shell                        |
-| `pages/`    | Route-level compositions for `/login`, `/notebooks`, `/notebooks/:notebookId` |
-| `features/` | User-facing capabilities: auth, notebooks list, editor, execution, sync, AI   |
-| `entities/` | Domain primitives: notebook, block, output, execution session, user           |
-| `shared/`   | Cross-cutting infrastructure: API client, persistence, UI kit, config, lib    |
+| Layer       | Responsibility                                                                         |
+| ----------- | -------------------------------------------------------------------------------------- |
+| `app/`      | Bootstrap, providers, router, global styles, app shell                                 |
+| `pages/`    | Route-level compositions for `/login`, `/notebooks`, `/notebooks/:notebookId`, `/help` |
+| `features/` | User-facing capabilities: auth, notebooks list, editor, execution, sync, AI            |
+| `entities/` | Domain primitives: notebook, block, output, execution session, user                    |
+| `shared/`   | Cross-cutting infrastructure: API client, persistence, UI kit, config, lib             |
 
 **Import direction (mandatory):**
 
@@ -132,6 +133,9 @@ src/
     index.tsx
   pages/
     login/
+      ui/
+      model/
+    help/
       ui/
       model/
     notebooks-list/
@@ -361,6 +365,7 @@ Replace mock constants and stubs with `features/auth/api/` adapters when backend
 | Route                    | Page hook (`pages/*/model/`)                       | Feature hook (`features/*/model/`)    | Feature UI           |
 | ------------------------ | -------------------------------------------------- | ------------------------------------- | -------------------- |
 | `/login`                 | `useLoginPage` — auth redirect                     | `useLoginForm` — sign-in flow         | `LoginForm`          |
+| `/help`                  | `useHelpPage` — sidebar state + help sections      | none                                  | none                 |
 | `/notebooks`             | optional route guards later                        | `useNotebooksList` — list + create    | `NotebooksList`      |
 | `/notebooks/:notebookId` | `useNotebookEditorPage` — params/load errors later | `useNotebookEditor` — blocks, outputs | `NotebookEditorView` |
 
@@ -486,6 +491,7 @@ No store segment should own both durable notebook content and execution output a
 
 | Route                    | Page slice               | Main feature slices                                                     |
 | ------------------------ | ------------------------ | ----------------------------------------------------------------------- |
+| `/help`                  | `pages/help/`            | `features/notebooks`                                                    |
 | `/login`                 | `pages/login/`           | `features/auth`                                                         |
 | `/notebooks`             | `pages/notebooks-list/`  | `features/notebooks`, `features/auth`                                   |
 | `/notebooks/:notebookId` | `pages/notebook-editor/` | `features/editor`, `features/execution`, `features/sync`, `features/ai` |
@@ -536,7 +542,15 @@ Purpose:
 - create a notebook
 - open a notebook
 
-### 5.3 `/notebooks/:notebookId`
+### 5.3 `/help`
+
+Purpose:
+
+- provide a compact in-product guide
+- explain notebooks, blocks, execution, sync, and AI usage
+- stay reachable from the sidebar utility area while editing
+
+### 5.4 `/notebooks/:notebookId`
 
 Purpose:
 
@@ -579,6 +593,8 @@ The notebook list screen contains:
 
 The notebook editor screen contains:
 
+- left notebook sidebar
+- notebook header with explicit rename affordance
 - top notebook action bar
 - central vertical block list
 - block-level action cluster beside each block
@@ -594,20 +610,29 @@ The notebook editor uses a `notion-like` vertical reading and editing flow.
 
 The layout structure is:
 
-1. top action bar
-2. notebook metadata area where needed
-3. ordered vertical block sequence
-4. block-local output directly attached to the related code block
+1. left notebook sidebar
+2. notebook header for title and notebook metadata
+3. top action bar inside the editor content column
+4. ordered vertical block sequence
+5. block-local output directly attached to the related code block
 
 The top action bar contains notebook-level actions such as:
 
-- notebook title display or editing
 - sync action
 - run-all action
+- stop action
+- insert text block action
+- insert code block action
 - export action
 - navigation actions where needed
 
-The layout does not use a permanent split-view or a permanent global side panel in Version 1.
+The notebook header contains:
+
+- notebook title display or editing
+- default local-draft title `Untitled` until the user picks a custom title
+- notebook metadata where needed
+
+The layout does not use a dashboard-style split workspace or an unrelated permanent utility side panel in Version 1. A restrained notebook navigation sidebar inside the notebook editor route is allowed.
 
 ## 8. Block Model in the UI
 
@@ -621,40 +646,46 @@ Each rendered block contains:
 - block container
 - block action cluster
 - block content area
+- block toolbar when active
 - block-specific UI state
 
 Code blocks additionally contain:
 
 - code editor
 - run/stop control
-- AI action
 - output area
 
 Text blocks contain:
 
 - Markdown editing area
+- AI action
 
 ## 9. Block Action Cluster
 
 Each block displays a block action cluster near the block.
 
-The cluster contains:
+The cluster contains only the primary action relevant to the block type:
 
-1. `Block toolbar trigger`
-   Opens block actions such as:
-   - add block above
-   - add block below
-   - delete block
-   - move block up
-   - move block down
-
-2. `AI action`
+1. `AI action` for eligible `text` blocks
    Opens AI prompt UI for the selected eligible source block. In Version 1 the source is a `text` block; revising code first converts the `code` block into a `text` source block.
 
-3. `Run/Stop action`
+2. `Run/Stop action` for `code` blocks
    Starts execution or stops the running block execution flow when applicable.
 
 The action cluster is local to the block and is not a notebook-global control area.
+
+Secondary block-management controls belong to the `Block toolbar`, not to the primary action cluster.
+
+The block toolbar:
+
+- is hidden by default
+- becomes visible when the block is selected or otherwise clearly active
+- contains structural block actions such as:
+  - move block up
+  - move block down
+  - delete block
+
+Block insertion is handled through inline insert controls in the block sequence, not through the block toolbar.
 
 ## 10. Text Block Editing
 
@@ -679,7 +710,6 @@ The code block UI supports:
 - editing executable `JavaScript`
 - preserving code content as part of the notebook block
 - block-level execution actions
-- AI-assisted code replacement or refinement
 
 The code editor is part of the block and not a detached IDE workspace.
 

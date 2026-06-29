@@ -83,6 +83,26 @@ describe("useNotebookEditor persistence", () => {
     expect(saveSpy).not.toHaveBeenCalled();
   });
 
+  it("keeps a persisted empty local notebook empty after reopen", async () => {
+    const repository = makeRepo();
+    await repository.save({
+      id: "nb_empty_reopen",
+      title: "Untitled",
+      tags: [],
+      blocks: [],
+      revision: 1,
+      createdAt: "2026-06-29T08:00:00.000Z",
+      updatedAt: "2026-06-29T08:00:00.000Z",
+    });
+
+    const { result } = renderHook(() =>
+      useNotebookEditor("nb_empty_reopen", { repository }),
+    );
+    await flushEffects();
+
+    expect(result.current.notebook.blocks).toEqual([]);
+  });
+
   it("reuses the next empty code block for AI-generated code insertion", async () => {
     const repository = makeRepo();
     const sourceNotebook: Notebook = {

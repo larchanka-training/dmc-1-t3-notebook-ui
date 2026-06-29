@@ -1,12 +1,26 @@
 export { BlockAiAction } from "./ui/BlockAiAction";
-export { buildAiRequestContext, parseAiSourceText, useBlockAiAction } from "./model";
+export { NotebookLocalAiStatus } from "./ui/NotebookLocalAiStatus";
+export {
+  buildAiRequestContext,
+  checkWebLlmRuntimeCapability,
+  parseAiSourceText,
+  useBlockAiAction,
+  useLocalAiRuntime,
+  useNotebookLocalAiStatus,
+  getLocalAiRuntimeController,
+  LocalAiRuntimeController,
+  setLocalAiRuntimeControllerForTests,
+} from "./model";
 export type {
-  AiErrorClass,
-  AiErrorCode,
   AiRelevantBlock,
   AiRequestStatus,
   AiScope,
   BlockAiActionProps,
   BlockAiErrorState,
   BlockAiState,
+  LocalAiRuntimeError,
+  LocalAiRuntimeErrorCode,
+  LocalAiRuntimeSnapshot,
+  LocalAiRuntimeStatus,
+  NotebookLocalAiSurfaceStatus,
 } from "./model";

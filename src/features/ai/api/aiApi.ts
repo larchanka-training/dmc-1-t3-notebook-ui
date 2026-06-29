@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ApiError, httpClient } from "@/shared/api";
+import type { AiGenerationRequest } from "./provider";
 
 const AI_PREFIX = "/ai";
 
@@ -46,12 +47,11 @@ const aiGenerateRequestSchema = z.object({
   insertionStrategy: z.literal("next-empty-or-new-after-source"),
 });
 
-export type AiGenerateRequest = z.infer<typeof aiGenerateRequestSchema>;
 export type AiGenerateSuccess = z.infer<typeof aiSuccessResponseSchema>;
 export type AiWarning = z.infer<typeof aiWarningSchema>;
 
 export async function generateCodeBlock(
-  request: AiGenerateRequest,
+  request: AiGenerationRequest,
 ): Promise<AiGenerateSuccess> {
   const payload = aiGenerateRequestSchema.parse(request);
   const data = await httpClient.post<unknown>(

@@ -32,7 +32,7 @@ describe("generateCodeBlock", () => {
           code: "function sum(values) { return values.reduce((acc, value) => acc + value, 0); }",
           provider: {
             name: "bedrock",
-            model: "anthropic.claude-3-haiku",
+            model: "deepseek.v3.2",
           },
           validation: {
             extractionApplied: true,
