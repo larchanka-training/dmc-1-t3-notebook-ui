@@ -27,7 +27,14 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
-    resolve: { alias },
+    resolve: {
+      alias,
+      dedupe: [
+        "@codemirror/state",
+        "@codemirror/view",
+        "@codemirror/lang-javascript",
+      ],
+    },
     server: {
       host,
       port,
