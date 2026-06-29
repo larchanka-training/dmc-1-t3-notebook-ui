@@ -485,9 +485,7 @@ describe("NotebookEditorPage", () => {
     );
     expect(requestSpy).not.toHaveBeenCalled();
     expect(
-      within(introAiAction).queryByRole("button", {
-        name: "Prepare WebLLM local mode for blk_intro",
-      }),
+      within(introAiAction).queryByRole("button", { name: "Prepare WebLLM" }),
     ).not.toBeInTheDocument();
     expect(screen.getByLabelText("Local AI status")).toHaveTextContent("Local AI");
     expect(screen.getByRole("button", { name: "Prepare WebLLM" })).toBeInTheDocument();
@@ -555,14 +553,19 @@ describe("NotebookEditorPage", () => {
       }),
     );
 
-    const insertedBlockButton = await screen.findByRole("button", {
-      name: "Run blk_new_code_1",
-    });
-    const insertedBlockArticle = insertedBlockButton.closest("article");
-    expect(insertedBlockArticle).not.toBeNull();
-    expect(within(insertedBlockArticle!).getByRole("textbox")).toHaveTextContent(
-      "const localTotal = orders.reduce((sum, order) => sum + order.total, 0);",
+    await waitFor(() =>
+      expect(screen.getAllByLabelText("JavaScript code block")).toHaveLength(3),
     );
+    expect(screen.getAllByLabelText("JavaScript code block")).toHaveLength(3);
+    expect(
+      screen
+        .getAllByRole("textbox")
+        .some((textbox) =>
+          textbox.textContent?.includes(
+            "const localTotal = orders.reduce((sum, order) => sum + order.total, 0);",
+          ),
+        ),
+    ).toBe(true);
   });
 
   it("surfaces unsupported WebLLM runtime as a frontend-local local-mode failure", async () => {
