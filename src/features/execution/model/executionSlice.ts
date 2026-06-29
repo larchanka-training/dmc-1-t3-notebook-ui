@@ -30,6 +30,15 @@ export const createExecutionSlice: StateCreator<
   const removeRunningBlockId = (runningBlockIds: string[], blockId: string) =>
     runningBlockIds.filter((runningBlockId) => runningBlockId !== blockId);
 
+  const omitExecutionOrder = (
+    executionOrderByBlockId: Record<string, number>,
+    blockId: string,
+  ) => {
+    const next = { ...executionOrderByBlockId };
+    delete next[blockId];
+    return next;
+  };
+
   const getStatusForError = (error: NormalizedExecutionError) => {
     switch (error.kind) {
       case "timeout":
@@ -44,14 +53,24 @@ export const createExecutionSlice: StateCreator<
   return {
     execution: initialExecutionState,
     startExecution: (request: ExecutionRequest) => {
-      set({
-        execution: {
-          ...initialExecutionState,
-          status: request.command === "stop" ? "stopping" : "running",
-          activeExecutionId: request.executionId,
-          activeCommand: request.command,
-          targetBlockId: "targetBlockId" in request ? request.targetBlockId : null,
-        },
+      set((state) => {
+        const preserveExecutionOrder = request.command !== "run-all";
+
+        return {
+          execution: {
+            ...initialExecutionState,
+            executionOrderByBlockId: preserveExecutionOrder
+              ? state.execution.executionOrderByBlockId
+              : {},
+            nextExecutionOrder: preserveExecutionOrder
+              ? state.execution.nextExecutionOrder
+              : 1,
+            status: request.command === "stop" ? "stopping" : "running",
+            activeExecutionId: request.executionId,
+            activeCommand: request.command,
+            targetBlockId: "targetBlockId" in request ? request.targetBlockId : null,
+          },
+        };
       });
     },
     markBlockRunning: (executionId, blockId) => {
@@ -81,6 +100,10 @@ export const createExecutionSlice: StateCreator<
         return {
           execution: {
             ...state.execution,
+            executionOrderByBlockId: omitExecutionOrder(
+              state.execution.executionOrderByBlockId,
+              blockId,
+            ),
             outputs: {
               ...state.execution.outputs,
               [blockId]: [],
@@ -127,6 +150,18 @@ export const createExecutionSlice: StateCreator<
             runningBlockIds: blockId
               ? removeRunningBlockId(state.execution.runningBlockIds, blockId)
               : [],
+            executionOrderByBlockId:
+              error.kind === "timeout" ||
+              error.kind === "canceled" ||
+              error.kind === "bridge"
+                ? {}
+                : state.execution.executionOrderByBlockId,
+            nextExecutionOrder:
+              error.kind === "timeout" ||
+              error.kind === "canceled" ||
+              error.kind === "bridge"
+                ? 1
+                : state.execution.nextExecutionOrder,
             outputs,
             error,
           },
@@ -149,6 +184,11 @@ export const createExecutionSlice: StateCreator<
             ...state.execution,
             status: runningBlockIds.length === 0 ? "idle" : state.execution.status,
             runningBlockIds,
+            executionOrderByBlockId: {
+              ...state.execution.executionOrderByBlockId,
+              [blockId]: state.execution.nextExecutionOrder,
+            },
+            nextExecutionOrder: state.execution.nextExecutionOrder + 1,
           },
         };
       });

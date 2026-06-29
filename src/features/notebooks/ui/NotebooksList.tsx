@@ -24,7 +24,16 @@ function itemKey(item: NotebookListItem): string {
 }
 
 export function NotebooksList() {
-  const { items, status, error, onCreateNotebook, onOpen } = useNotebooksList();
+  const {
+    items,
+    status,
+    error,
+    pendingDeleteKey,
+    deleteError,
+    onCreateNotebook,
+    onOpen,
+    onDelete,
+  } = useNotebooksList();
 
   return (
     <div className="mx-auto max-w-3xl p-token-24">
@@ -43,6 +52,11 @@ export function NotebooksList() {
           {error ?? "Failed to load notebooks."}
         </p>
       )}
+      {deleteError ? (
+        <p className="mb-token-16 text-sm text-accent-danger" role="alert">
+          {deleteError}
+        </p>
+      ) : null}
       {status === "idle" && items.length === 0 && (
         <EmptyState>
           No notebooks yet. Click <strong>Create notebook</strong> to start.
@@ -53,26 +67,41 @@ export function NotebooksList() {
           <ul className="divide-y divide-border-token">
             {items.map((nb) => (
               <li key={itemKey(nb)}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    void onOpen(nb);
-                  }}
-                  className="block w-full px-token-16 py-token-12 text-left text-sm text-ink transition-colors hover:bg-editor focus-visible:bg-editor focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
-                >
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="font-medium">{nb.title}</span>
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${originBadgeClass(nb.origin)}`}
-                      data-testid="notebook-origin"
-                    >
-                      {ORIGIN_LABEL[nb.origin]}
+                <div className="flex items-center gap-3 px-token-16 py-token-12">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void onOpen(nb);
+                    }}
+                    className="block min-w-0 flex-1 text-left text-sm text-ink transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
+                  >
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="truncate font-medium">{nb.title}</span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${originBadgeClass(nb.origin)}`}
+                        data-testid="notebook-origin"
+                      >
+                        {ORIGIN_LABEL[nb.origin]}
+                      </span>
                     </span>
-                  </span>
-                  <span className="mt-1 block text-xs text-ink-muted">
-                    Updated {new Date(nb.updatedAt).toLocaleString()}
-                  </span>
-                </button>
+                    <span className="mt-1 block text-xs text-ink-muted">
+                      Updated {new Date(nb.updatedAt).toLocaleString()}
+                    </span>
+                  </button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0 text-ink-muted hover:text-accent-danger"
+                    disabled={pendingDeleteKey === itemKey(nb)}
+                    aria-label={`Delete ${nb.title}`}
+                    onClick={() => {
+                      void onDelete(nb);
+                    }}
+                  >
+                    {pendingDeleteKey === itemKey(nb) ? "Deleting…" : "Delete"}
+                  </Button>
+                </div>
               </li>
             ))}
           </ul>

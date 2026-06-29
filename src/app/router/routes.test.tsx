@@ -45,6 +45,23 @@ describe("routes", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders help for authenticated users", async () => {
+    useAppStore.setState({
+      auth: {
+        isAuthenticated: true,
+        user: testUser(),
+        authenticatedAt: null,
+        status: "idle",
+        error: null,
+      },
+    });
+
+    const router = createMemoryRouter(routes, { initialEntries: ["/help"] });
+    renderWithProviders(<RouterProvider router={router} />);
+
+    expect(await screen.findByRole("heading", { name: "Help" })).toBeInTheDocument();
+  });
+
   it("redirects unknown paths to login when unauthenticated", async () => {
     const router = createMemoryRouter(routes, { initialEntries: ["/unknown"] });
     renderWithProviders(<RouterProvider router={router} />);

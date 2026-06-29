@@ -49,3 +49,18 @@ export function fromServerNotebook(server: ServerNotebook, localId: string): Not
     updatedAt: server.updated_at,
   };
 }
+
+/** Apply server metadata to an existing local working copy without replacing blocks. */
+export function applyServerNotebookMetadata(
+  notebook: Notebook,
+  server: ServerNotebook,
+): Notebook {
+  return {
+    ...notebook,
+    title: server.title,
+    tags: server.tags,
+    revision: server.revision,
+    createdAt: server.created_at,
+    updatedAt: server.updated_at,
+  };
+}

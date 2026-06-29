@@ -135,7 +135,8 @@ The editor should preserve the documented vertical notebook layout while matchin
 Required alignment:
 
 - use the app's neutral background and white surfaces
-- keep the editor top bar compact and sticky
+- keep the editor top bar compact
+- allow a restrained left notebook sidebar inside the editor route
 - use sans typography for notebook metadata and controls
 - use monospace only for JavaScript source
 - keep block cards at small radius, no more than `8px`
@@ -150,7 +151,7 @@ Avoid:
 - separate warm/editorial palette
 - radial or decorative background effects
 - oversized hero-style notebook title
-- global side panels or permanent split panes
+- unrelated global utility side panels or dashboard-style split panes
 - card-within-card decoration
 - global CSS button overrides
 - adding a new UI library or frontend dependency

@@ -6,6 +6,7 @@ export {
   setLocalAiRuntimeControllerForTests,
   useLocalAiRuntime,
 } from "./localRuntime";
+export { useNotebookLocalAiStatus } from "./useNotebookLocalAiStatus";
 export { useBlockAiAction } from "./useBlockAiAction";
 export type {
   AiRelevantBlock,
@@ -18,4 +19,5 @@ export type {
   BlockAiActionProps,
   BlockAiErrorState,
   BlockAiState,
+  NotebookLocalAiSurfaceStatus,
 } from "./types";

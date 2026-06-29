@@ -15,6 +15,13 @@ export function createNotebookOnServer(notebook: Notebook): Promise<ServerNotebo
   });
 }
 
+export function patchNotebookTitleOnServer(
+  serverId: string,
+  title: string,
+): Promise<ServerNotebook> {
+  return httpClient.patch<ServerNotebook>(`${NOTEBOOKS}/${serverId}`, { title });
+}
+
 export function syncNotebookOnServer(
   serverId: string,
   baseRevision: number,
@@ -32,4 +39,8 @@ export function getServerNotebook(serverId: string): Promise<ServerNotebook> {
 
 export function listServerNotebooks(): Promise<ServerNotebookSummary[]> {
   return httpClient.get<ServerNotebookSummary[]>(NOTEBOOKS);
+}
+
+export function deleteServerNotebook(serverId: string): Promise<void> {
+  return httpClient.delete<void>(`${NOTEBOOKS}/${serverId}`);
 }

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import type { ReactNode } from "react";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
@@ -56,6 +56,10 @@ const serverSummary = {
 };
 
 describe("useNotebooksList (merged)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("merges local working copies with the server list on mount", async () => {
     const repository = makeRepo();
     await repository.save(
@@ -121,12 +125,82 @@ describe("useNotebooksList (merged)", () => {
       await result.current.onOpen(remote);
     });
 
-    await waitFor(() => expect(lastLocation).toMatch(/^\/notebooks\/local-/));
+    await waitFor(() => expect(lastLocation).toMatch(/^\/notebooks\/[^/]+$/));
     const newLocalId = lastLocation.replace("/notebooks/", "");
+    expect(newLocalId).not.toBe("");
     const stored = await repository.load(newLocalId);
     expect(stored?.notebook.title).toBe("Remote notebook");
     expect(stored?.sync.serverId).toBe("srv-remote");
     expect(stored?.sync.baseRevision).toBe(7);
     expect(stored?.sync.status).toBe("synced");
+  });
+
+  it("creates a local draft notebook with the default untitled title", async () => {
+    const repository = makeRepo();
+
+    const { result } = renderHook(() => useNotebooksList({ repository }), {
+      wrapper,
+    });
+
+    await waitFor(() => expect(result.current.status).toBe("idle"));
+
+    await act(async () => {
+      result.current.onCreateNotebook();
+    });
+
+    await waitFor(() => expect(lastLocation).toMatch(/^\/notebooks\/[^/]+$/));
+    const newLocalId = lastLocation.replace("/notebooks/", "");
+    expect(newLocalId).not.toBe("");
+    const stored = await repository.load(newLocalId);
+
+    expect(stored?.notebook.title).toBe("Untitled");
+    expect(stored?.notebook.blocks).toEqual([]);
+  });
+
+  it("deletes a local-only notebook without hitting the backend", async () => {
+    vi.stubGlobal(
+      "confirm",
+      vi.fn(() => true),
+    );
+    const repository = makeRepo();
+    await repository.save(
+      { ...sampleNotebook, id: "local-1", title: "Local notebook" },
+      DEFAULT_SYNC_META,
+    );
+
+    const { result } = renderHook(() => useNotebooksList({ repository }), {
+      wrapper,
+    });
+
+    await waitFor(() => expect(result.current.items).toHaveLength(1));
+
+    await act(async () => {
+      await result.current.onDelete(result.current.items[0]);
+    });
+
+    expect(result.current.items).toHaveLength(0);
+    expect(await repository.load("local-1")).toBeUndefined();
+  });
+
+  it("deletes a remote-only notebook via the backend and removes it from the merged list", async () => {
+    vi.stubGlobal(
+      "confirm",
+      vi.fn(() => true),
+    );
+    setMockServerNotebooks([serverSummary]);
+    setMockServerNotebook(serverNotebook);
+
+    const { result } = renderHook(() => useNotebooksList({ repository: makeRepo() }), {
+      wrapper,
+    });
+
+    await waitFor(() => expect(result.current.items).toHaveLength(1));
+
+    await act(async () => {
+      await result.current.onDelete(result.current.items[0]);
+    });
+
+    expect(result.current.items).toHaveLength(0);
+    expect(result.current.deleteError).toBeNull();
   });
 });

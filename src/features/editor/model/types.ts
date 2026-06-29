@@ -25,3 +25,11 @@ export type NotebookBlockRenderArgs = {
 };
 
 export type NotebookBlockRender = (args: NotebookBlockRenderArgs) => ReactNode;
+
+export type NotebookTopBarRenderArgs = {
+  notebook: Notebook;
+  syncMeta: NotebookSyncMeta;
+  actions: BlockActions;
+};
+
+export type NotebookTopBarRender = (args: NotebookTopBarRenderArgs) => ReactNode;

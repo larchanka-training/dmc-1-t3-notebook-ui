@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useAppStore } from "@/app/model";
 import {
+  applyServerNotebookMetadata,
   type CodeBlock,
+  createLocalDraftNotebook,
   createCodeBlock,
   createLocalNotebookRepository,
   createTextBlock,
@@ -15,13 +17,24 @@ import {
   updateTextBlockMarkdown,
 } from "@/entities/notebook";
 import type { Notebook, NotebookBlock, NotebookRepository } from "@/entities/notebook";
-import { DEFAULT_SYNC_META, sampleNotebook } from "@/entities/notebook";
+import {
+  DEFAULT_NOTEBOOK_TITLE,
+  DEFAULT_SYNC_META,
+  normalizeNotebookTitle,
+  sampleNotebook,
+} from "@/entities/notebook";
 import type { NotebookSyncMeta } from "@/entities/notebook";
 import { createAutosaver } from "@/shared/lib";
 import type { OutputItem } from "@/entities/output";
 import { notebookWorkerBridge, toRuntimeExecutionRequest } from "@/features/execution";
 import type { ExecutionStatus } from "@/features/execution";
-import { adoptServerVersion, fetchServerVersion, syncNotebook } from "@/features/sync";
+import {
+  deleteServerNotebook,
+  adoptServerVersion,
+  fetchServerVersion,
+  patchNotebookTitleOnServer,
+  syncNotebook,
+} from "@/features/sync";
 import type { BlockActions } from "./types";
 
 /** Debounce window for notebook autosave (ms). */
@@ -31,21 +44,30 @@ const defaultNotebookRepository = createLocalNotebookRepository();
 
 type UseNotebookEditorOptions = {
   repository?: NotebookRepository;
+  navigate?: (path: string) => void;
 };
+
+function maxBlockNumber(blocks: NotebookBlock[]): number {
+  let max = 0;
+  for (const block of blocks) {
+    const match = /^blk_new_(?:code|text)_(\d+)$/.exec(block.id);
+    if (match) {
+      max = Math.max(max, parseInt(match[1], 10));
+    }
+  }
+  return max;
+}
 
 function notebookForRoute(notebookId: string | null) {
   if (!notebookId) {
+    return createLocalDraftNotebook("local-preview", DEFAULT_NOTEBOOK_TITLE);
+  }
+
+  if (notebookId === sampleNotebook.id) {
     return sampleNotebook;
   }
 
-  return {
-    ...sampleNotebook,
-    id: notebookId,
-    title:
-      notebookId === sampleNotebook.id
-        ? sampleNotebook.title
-        : `Notebook ${notebookId}`,
-  };
+  return createLocalDraftNotebook(notebookId, DEFAULT_NOTEBOOK_TITLE);
 }
 
 export function useNotebookEditor(
@@ -65,6 +87,7 @@ export function useNotebookEditor(
   const repositoryRef = useRef<NotebookRepository>(
     options.repository ?? defaultNotebookRepository,
   );
+  const navigateRef = useRef<(path: string) => void>(options.navigate ?? (() => {}));
   // The autosaver is created once, so it must read the current sync meta from a
   // ref (kept in sync by an effect) to avoid persisting stale metadata.
   const syncMetaRef = useRef<NotebookSyncMeta>(syncMeta);
@@ -75,7 +98,11 @@ export function useNotebookEditor(
     }),
   );
   const execution = useAppStore((state) => state.execution);
+  const removeNotebookListItem = useAppStore((state) => state.removeNotebookListItem);
   const startExecution = useAppStore((state) => state.startExecution);
+  const updateNotebookListItemTitle = useAppStore(
+    (state) => state.updateNotebookListItemTitle,
+  );
   const markBlockRunning = useAppStore((state) => state.markBlockRunning);
   const clearBlockOutputsForRun = useAppStore((state) => state.clearBlockOutputsForRun);
   const appendBlockOutput = useAppStore((state) => state.appendBlockOutput);
@@ -83,14 +110,21 @@ export function useNotebookEditor(
   const recordExecutionError = useAppStore((state) => state.recordExecutionError);
   const disposeExecutionSession = useAppStore((state) => state.disposeExecutionSession);
   const markExecutionStopping = useAppStore((state) => state.markExecutionStopping);
+  const selectedBlockId = useAppStore((state) => state.blockUi.selectedBlockId);
 
   const editedSinceLoadRef = useRef(false);
+  const [deletePending, setDeletePending] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Keep the ref current so the once-created autosaver always persists the
   // latest sync meta alongside the notebook.
   useEffect(() => {
     syncMetaRef.current = syncMeta;
   }, [syncMeta]);
+
+  useEffect(() => {
+    navigateRef.current = options.navigate ?? (() => {});
+  }, [options.navigate]);
 
   useEffect(() => {
     notebookRef.current = notebook;
@@ -109,16 +143,21 @@ export function useNotebookEditor(
     setNotebook(notebookForRoute(notebookId));
     setSyncMeta(DEFAULT_SYNC_META);
 
-    void repositoryRef.current
-      .load(notebookId ?? sampleNotebook.id)
-      .then((restored) => {
-        // Apply the persisted notebook only if one exists and the user has not
-        // started editing the freshly seeded one (avoids clobbering edits).
-        if (!cancelled && restored && !editedSinceLoadRef.current) {
-          setNotebook(restored.notebook);
-          setSyncMeta(restored.sync);
-        }
-      });
+    if (!notebookId) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    void repositoryRef.current.load(notebookId).then((restored) => {
+      // Apply the persisted notebook only if one exists and the user has not
+      // started editing the freshly seeded one (avoids clobbering edits).
+      if (!cancelled && restored && !editedSinceLoadRef.current) {
+        setNotebook(restored.notebook);
+        setSyncMeta(restored.sync);
+        setNextBlockNumber(maxBlockNumber(restored.notebook.blocks) + 1);
+      }
+    });
 
     return () => {
       cancelled = true;
@@ -135,9 +174,19 @@ export function useNotebookEditor(
     setSyncMeta((m) => (m.status === "synced" ? { ...m, status: "unsynced" } : m));
     setNotebook((current) => {
       const next = updater(current);
+      notebookRef.current = next;
       autosaverRef.current.schedule(next);
       return next;
     });
+  };
+
+  const persistNotebook = async (
+    nextNotebook: Notebook,
+    nextSyncMeta: NotebookSyncMeta = syncMetaRef.current,
+  ) => {
+    notebookRef.current = nextNotebook;
+    syncMetaRef.current = nextSyncMeta;
+    await repositoryRef.current.save(nextNotebook, nextSyncMeta);
   };
 
   const createBlockId = (type: NotebookBlock["type"]) => {
@@ -379,6 +428,7 @@ export function useNotebookEditor(
     return {
       isRunning,
       isTarget,
+      executionOrder: execution.executionOrderByBlockId[blockId] ?? null,
       canRun: canStartExecution,
       canRunFromHere: canStartExecution,
       canStop: canStopExecution && (isRunning || isTarget),
@@ -423,6 +473,83 @@ export function useNotebookEditor(
 
   const keepLocalForLater = () => setSyncMeta((m) => ({ ...m, status: "unsynced" }));
 
+  const selectBlock = (blockId: string | null) => {
+    useAppStore.setState((state) => ({
+      ...state,
+      blockUi: {
+        ...state.blockUi,
+        selectedBlockId: blockId,
+      },
+    }));
+  };
+
+  const deleteNotebook = async () => {
+    const confirmed =
+      globalThis.confirm?.(`Delete notebook "${notebookRef.current.title}"?`) ?? true;
+    if (!confirmed || deletePending) {
+      return;
+    }
+
+    setDeletePending(true);
+    setDeleteError(null);
+
+    try {
+      if (syncMetaRef.current.serverId) {
+        await deleteServerNotebook(syncMetaRef.current.serverId);
+      }
+      await repositoryRef.current.remove(notebookRef.current.id);
+      removeNotebookListItem(notebookRef.current.id, syncMetaRef.current.serverId);
+      autosaverRef.current.cancel();
+      notebookWorkerBridge.dispose();
+      disposeExecutionSession();
+      useAppStore.setState((state) => ({
+        ...state,
+        blockUi: {
+          selectedBlockId: null,
+          focusedBlockId: null,
+          toolbarOpenForBlockId: null,
+          aiPromptOpenForBlockId: null,
+        },
+      }));
+      navigateRef.current("/notebooks");
+    } catch {
+      setDeleteError(`Failed to delete "${notebookRef.current.title}".`);
+    } finally {
+      setDeletePending(false);
+    }
+  };
+
+  const renameNotebookTitle = async (title: string) => {
+    const nextTitle = normalizeNotebookTitle(title);
+    const currentNotebook = notebookRef.current;
+
+    if (nextTitle === currentNotebook.title) {
+      return;
+    }
+
+    if (syncMetaRef.current.serverId === null) {
+      applyNotebookChange((activeNotebook) => ({
+        ...activeNotebook,
+        title: nextTitle,
+      }));
+      updateNotebookListItemTitle(currentNotebook.id, null, nextTitle);
+      return;
+    }
+
+    const server = await patchNotebookTitleOnServer(
+      syncMetaRef.current.serverId,
+      nextTitle,
+    );
+    const nextNotebook = applyServerNotebookMetadata(notebookRef.current, server);
+    setNotebook(nextNotebook);
+    updateNotebookListItemTitle(
+      nextNotebook.id,
+      syncMetaRef.current.serverId,
+      nextNotebook.title,
+    );
+    await persistNotebook(nextNotebook);
+  };
+
   return {
     notebookId,
     notebook,
@@ -436,12 +563,20 @@ export function useNotebookEditor(
     activeExecutionId: execution.activeExecutionId,
     activeCommand: execution.activeCommand,
     activeTargetBlockId: execution.targetBlockId,
+    selectedBlockId,
+    selectBlock,
     canStartExecution,
     canStopExecution,
     getBlockExecutionState,
     getOutputs,
     syncStatus: syncMeta.status,
     syncMeta,
+    canDeleteNotebook: !deletePending && syncMeta.status !== "syncing",
+    deletePending,
+    deleteError,
+    deleteNotebook,
+    canRenameTitle: syncMeta.status !== "syncing",
+    renameNotebookTitle,
     requestSync,
     replaceLocalWithServer,
     keepLocalForLater,

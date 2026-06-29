@@ -17,6 +17,8 @@ describe("createExecutionSlice", () => {
     expect(s.execution.activeCommand).toBeNull();
     expect(s.execution.targetBlockId).toBeNull();
     expect(s.execution.runningBlockIds).toEqual([]);
+    expect(s.execution.executionOrderByBlockId).toEqual({});
+    expect(s.execution.nextExecutionOrder).toBe(1);
     expect(s.execution.outputs).toEqual({});
     expect(s.execution.error).toBeNull();
   });
@@ -77,6 +79,86 @@ describe("createExecutionSlice", () => {
     });
   });
 
+  it("assigns an execution order after a successful run", () => {
+    const store = createExecutionStore();
+
+    store.getState().startExecution({
+      command: "run-current",
+      executionId: "exec_1",
+      targetBlockId: "blk_1",
+    });
+    store.getState().markBlockRunning("exec_1", "blk_1");
+    store.getState().clearBlockOutputsForRun("exec_1", "blk_1");
+    store.getState().completeBlockExecution("exec_1", "blk_1");
+
+    const s = store.getState();
+    expect(s.execution.status).toBe("idle");
+    expect(s.execution.runningBlockIds).toEqual([]);
+    expect(s.execution.executionOrderByBlockId).toEqual({ blk_1: 1 });
+    expect(s.execution.nextExecutionOrder).toBe(2);
+  });
+
+  it("reassigns a new execution order when the block is rerun", () => {
+    const store = createExecutionStore();
+
+    store.getState().startExecution({
+      command: "run-current",
+      executionId: "exec_1",
+      targetBlockId: "blk_1",
+    });
+    store.getState().markBlockRunning("exec_1", "blk_1");
+    store.getState().clearBlockOutputsForRun("exec_1", "blk_1");
+    store.getState().completeBlockExecution("exec_1", "blk_1");
+
+    store.getState().startExecution({
+      command: "run-current",
+      executionId: "exec_2",
+      targetBlockId: "blk_1",
+    });
+    store.getState().clearBlockOutputsForRun("exec_2", "blk_1");
+    store.getState().markBlockRunning("exec_2", "blk_1");
+    store.getState().completeBlockExecution("exec_2", "blk_1");
+
+    expect(store.getState().execution.executionOrderByBlockId).toEqual({
+      blk_1: 2,
+    });
+    expect(store.getState().execution.nextExecutionOrder).toBe(3);
+  });
+
+  it("preserves execution order across run-current and resets it on run-all", () => {
+    const store = createExecutionStore();
+
+    store.getState().startExecution({
+      command: "run-current",
+      executionId: "exec_1",
+      targetBlockId: "blk_1",
+    });
+    store.getState().markBlockRunning("exec_1", "blk_1");
+    store.getState().completeBlockExecution("exec_1", "blk_1");
+
+    store.getState().startExecution({
+      command: "run-current",
+      executionId: "exec_2",
+      targetBlockId: "blk_2",
+    });
+    store.getState().markBlockRunning("exec_2", "blk_2");
+    store.getState().completeBlockExecution("exec_2", "blk_2");
+
+    expect(store.getState().execution.executionOrderByBlockId).toEqual({
+      blk_1: 1,
+      blk_2: 2,
+    });
+
+    store.getState().startExecution({
+      command: "run-all",
+      executionId: "exec_3",
+      targetBlockId: "blk_1",
+    });
+
+    expect(store.getState().execution.executionOrderByBlockId).toEqual({});
+    expect(store.getState().execution.nextExecutionOrder).toBe(1);
+  });
+
   it("ignores stale outputs and errors from a previous execution id", () => {
     const store = createExecutionStore();
 
@@ -124,6 +206,8 @@ describe("createExecutionSlice", () => {
     const s = store.getState();
     expect(s.execution.status).toBe("timeout");
     expect(s.execution.runningBlockIds).toEqual([]);
+    expect(s.execution.executionOrderByBlockId).toEqual({});
+    expect(s.execution.nextExecutionOrder).toBe(1);
     expect(s.execution.error).toEqual({
       kind: "timeout",
       name: "TimeoutError",
@@ -163,6 +247,8 @@ describe("createExecutionSlice", () => {
     expect(s.execution.activeCommand).toBeNull();
     expect(s.execution.targetBlockId).toBeNull();
     expect(s.execution.runningBlockIds).toEqual([]);
+    expect(s.execution.executionOrderByBlockId).toEqual({});
+    expect(s.execution.nextExecutionOrder).toBe(1);
     expect(s.execution.outputs).toEqual({});
     expect(s.execution.error).toBeNull();
   });

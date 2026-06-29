@@ -28,11 +28,11 @@
 3. Text blocks редактируются как `Markdown`.
 4. Code blocks редактируются через `CodeMirror`.
 5. Notebook editor использует вертикальный document layout.
-6. AI flow привязан к блоку и работает только в контексте выбранного code block.
-7. Block action cluster показывается рядом с блоком и содержит:
-   - trigger block toolbar
-   - AI action
-   - run/stop action
+6. AI flow привязан к блоку и использует выбранный `text` block как source в Version 1; revision существующего кода сначала проходит через documented convert-code-to-text flow.
+7. Block action cluster показывается рядом с блоком и содержит primary action для текущего блока:
+   - AI action для eligible `text` blocks
+   - run/stop action для `code` blocks
+   - доступ к secondary block-management controls через отдельный block toolbar, когда блок активен
 8. Типы output:
    - `text`
    - `object`
@@ -56,7 +56,7 @@ Frontend-приложение отвечает за:
 - порядок блоков и block-level actions
 - execution controls и execution feedback
 - рендеринг output
-- ввод AI-prompts для выбранного code block
+- ввод AI-prompts для выбранного `text` source block и code-revision conversion flow
 - интеграцию с локальной персистентностью
 - отображение состояния синхронизации и действия синхронизации
 
@@ -180,7 +180,7 @@ src/
 - editor (CRUD блоков, reorder, toolbar)
 - execution controls (run block / all / from here, stop)
 - sync (явная синхронизация, entry points UX конфликта)
-- AI (block-scoped prompt и apply flow)
+- AI-assisted block updates (block-scoped prompt and apply flow)
 
 #### `entities/`
 
@@ -407,12 +407,14 @@ Cluster содержит:
    - move block down
 
 2. `AI action`
-   Открывает AI prompt UI для выбранного code block.
+   Открывает AI prompt UI для выбранного `text` source block.
 
 3. `Run/Stop action`
    Запускает выполнение или останавливает текущий execution flow, когда это применимо.
 
 Action cluster является локальным для блока, а не notebook-global control area.
+Notebook-wide local AI runtime preparation и readiness messaging не должны жить в action cluster.
+Если optional browser-local AI mode видим в продукте, его bootstrap lifecycle должен принадлежать notebook-level top bar или другой notebook-scoped operational surface.
 
 ## 10. Редактирование text block
 
@@ -437,7 +439,7 @@ UI code block поддерживает:
 - редактирование исполняемого `JavaScript`
 - сохранение code content как части notebook-блока
 - block-level execution actions
-- AI-assisted replacement или refinement кода
+- convert-code-to-text entry point для AI revision flow
 
 Code editor является частью блока, а не отдельным IDE workspace.
 
@@ -463,13 +465,13 @@ AI flow привязан к блоку.
 
 Frontend AI interaction model:
 
-1. Пользователь выбирает целевой code block.
+1. Пользователь выбирает source `text` block.
 2. Пользователь нажимает AI action блока.
-3. Frontend открывает prompt input UI для этого блока.
+3. Frontend открывает prompt input UI для этого source block.
 4. Пользователь вводит prompt.
 5. Frontend отправляет prompt и релевантный notebook context через backend AI endpoint.
 6. Frontend получает сгенерированный код.
-7. Frontend вставляет сгенерированный код в выбранный code block как proposed update.
+7. Frontend вставляет сгенерированный код в следующий empty `code` block после source `text` block или создаёт новый `code` block сразу после source block.
 8. Пользователь подтверждает, редактирует или заменяет вставленный код.
 
 Version 1 не включает:

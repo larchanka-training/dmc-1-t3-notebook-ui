@@ -124,10 +124,7 @@ export function resolveGeneratedCodeInsertionTarget(
   return { kind: "new-after-source" };
 }
 
-export function createTextBlock(
-  id: string,
-  markdown = "New Markdown note",
-): NotebookBlock {
+export function createTextBlock(id: string, markdown = ""): NotebookBlock {
   return {
     id,
     type: "text",
@@ -137,10 +134,7 @@ export function createTextBlock(
   };
 }
 
-export function createCodeBlock(
-  id: string,
-  source = "console.log('New block');",
-): CodeBlock {
+export function createCodeBlock(id: string, source = ""): CodeBlock {
   return {
     id,
     type: "code",

@@ -37,6 +37,14 @@ export type BlockAiState = {
   error: BlockAiErrorState | null;
 };
 
+export type NotebookLocalAiSurfaceStatus =
+  | "disabled"
+  | "idle"
+  | "unsupported"
+  | "preparing"
+  | "ready"
+  | "failed";
+
 export type BlockAiActionProps = {
   notebookId: string | null;
   serverNotebookId: string | null;

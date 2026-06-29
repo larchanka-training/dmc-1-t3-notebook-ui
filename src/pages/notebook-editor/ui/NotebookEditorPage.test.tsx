@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
@@ -7,8 +7,19 @@ import { server } from "../../../../test/msw/server";
 import {
   LocalAiRuntimeController,
   setLocalAiRuntimeControllerForTests,
-} from "@/features/ai/model";
+} from "@/features/ai";
+import {
+  createCodeBlock,
+  createLocalNotebookRepository,
+  DEFAULT_SYNC_META,
+  sampleNotebook,
+} from "@/entities/notebook";
 import { NotebookEditorPage } from "@/pages/notebook-editor";
+import {
+  setMockServerNotebook,
+  setMockServerNotebooks,
+} from "@test/msw/handlers/notebooks";
+import { renderWithProviders } from "@test/renderWithProviders";
 
 const TEST_API_BASE =
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ??
@@ -28,7 +39,7 @@ function createDeferred<T>() {
 }
 
 describe("NotebookEditorPage", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.unstubAllEnvs();
     setLocalAiRuntimeControllerForTests(
       new LocalAiRuntimeController({
@@ -41,10 +52,26 @@ describe("NotebookEditorPage", () => {
         }),
       }),
     );
+
+    const repository = createLocalNotebookRepository();
+    await repository.save(
+      {
+        ...sampleNotebook,
+        id: SERVER_NOTEBOOK_ID,
+        title: "Untitled",
+      },
+      {
+        ...DEFAULT_SYNC_META,
+        serverId: SERVER_NOTEBOOK_ID,
+        baseRevision: sampleNotebook.revision,
+        status: "synced",
+      },
+    );
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
   });
 
   it("renders the notebook editor shell with route notebook id", () => {
@@ -58,15 +85,24 @@ describe("NotebookEditorPage", () => {
       { initialEntries: [`/notebooks/${SERVER_NOTEBOOK_ID}`] },
     );
 
-    render(<RouterProvider router={router} />);
+    renderWithProviders(<RouterProvider router={router} />);
 
-    expect(screen.getByRole("region", { name: "Notebook blocks" })).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: `Notebook ${SERVER_NOTEBOOK_ID}` }),
+      screen.getByRole("complementary", { name: "Notebook navigation" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Notebook header" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "Notebook top bar" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Notebook blocks" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Local AI status")).toHaveTextContent("Local AI");
+    expect(screen.getByRole("heading", { name: "Untitled" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create notebook" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "All notebooks" })).toBeInTheDocument();
   });
 
-  it("renders idle AI actions for text blocks only", () => {
+  it("collapses the notebook sidebar into an icon rail", async () => {
+    const user = userEvent.setup();
     const router = createMemoryRouter(
       [
         {
@@ -77,14 +113,98 @@ describe("NotebookEditorPage", () => {
       { initialEntries: [`/notebooks/${SERVER_NOTEBOOK_ID}`] },
     );
 
-    render(<RouterProvider router={router} />);
+    renderWithProviders(<RouterProvider router={router} />);
+
+    await user.click(screen.getByRole("button", { name: "Collapse notebook sidebar" }));
 
     expect(
-      screen.getByRole("button", { name: "Generate code from blk_intro" }),
+      screen.getByRole("button", { name: "Expand notebook sidebar" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("New notebook")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create notebook" })).toBeInTheDocument();
+  });
+
+  it("deletes the active synced notebook and redirects to the notebooks list", async () => {
+    vi.stubGlobal(
+      "confirm",
+      vi.fn(() => true),
+    );
+    const repository = createLocalNotebookRepository();
+    await repository.save(
+      { ...sampleNotebook, id: "local-synced-1", title: "Synced notebook" },
+      {
+        ...DEFAULT_SYNC_META,
+        serverId: SERVER_NOTEBOOK_ID,
+        baseRevision: 7,
+        status: "synced",
+      },
+    );
+    setMockServerNotebooks([
+      {
+        id: SERVER_NOTEBOOK_ID,
+        title: "Synced notebook",
+        tags: [],
+        revision: 7,
+        created_at: "2026-06-18T10:00:00.000Z",
+        updated_at: "2026-06-18T11:00:00.000Z",
+      },
+    ]);
+    setMockServerNotebook({
+      id: SERVER_NOTEBOOK_ID,
+      title: "Synced notebook",
+      tags: [],
+      blocks: sampleNotebook.blocks,
+      revision: 7,
+      created_at: "2026-06-18T10:00:00.000Z",
+      updated_at: "2026-06-18T11:00:00.000Z",
+      last_synced_at: "2026-06-18T11:00:00.000Z",
+    });
+
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/notebooks",
+          element: <div>Notebook list route</div>,
+        },
+        {
+          path: "/notebooks/:notebookId",
+          element: <NotebookEditorPage />,
+        },
+      ],
+      { initialEntries: ["/notebooks/local-synced-1"] },
+    );
+
+    renderWithProviders(<RouterProvider router={router} />);
+
+    await userEvent
+      .setup()
+      .click(
+        await screen.findByRole("button", { name: "Delete notebook from editor" }),
+      );
+
+    expect(await screen.findByText("Notebook list route")).toBeInTheDocument();
+    expect(await repository.load("local-synced-1")).toBeUndefined();
+  });
+
+  it("renders idle AI actions for text blocks only", async () => {
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/notebooks/:notebookId",
+          element: <NotebookEditorPage />,
+        },
+      ],
+      { initialEntries: [`/notebooks/${SERVER_NOTEBOOK_ID}`] },
+    );
+
+    renderWithProviders(<RouterProvider router={router} />);
+
+    expect(
+      await screen.findByRole("button", { name: "Generate code from blk_intro" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Generate code from blk_observation" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("button", { name: "Generate code from blk_observation" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Generate code from blk_prepare_data" }),
     ).not.toBeInTheDocument();
@@ -106,13 +226,13 @@ describe("NotebookEditorPage", () => {
       { initialEntries: [`/notebooks/${SERVER_NOTEBOOK_ID}`] },
     );
 
-    render(<RouterProvider router={router} />);
+    renderWithProviders(<RouterProvider router={router} />);
 
     await user.click(
-      screen.getByRole("button", { name: "Generate code from blk_intro" }),
+      await screen.findByRole("button", { name: "Generate code from blk_intro" }),
     );
 
-    expect(screen.getByText("Submitting via bedrock · scope: this")).toBeInTheDocument();
+    expect(screen.getByText("Generating...")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Generate code from blk_intro" }),
     ).toBeDisabled();
@@ -130,9 +250,9 @@ describe("NotebookEditorPage", () => {
         },
       }),
     );
-    expect(
-      await screen.findByLabelText("Generated code preview for blk_intro"),
-    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.queryByText("Generating...")).not.toBeInTheDocument(),
+    );
   });
 
   it("inserts a new code block after the source text block when the next block is not empty", async () => {
@@ -189,25 +309,23 @@ describe("NotebookEditorPage", () => {
       { initialEntries: [`/notebooks/${SERVER_NOTEBOOK_ID}`] },
     );
 
-    render(<RouterProvider router={router} />);
+    renderWithProviders(<RouterProvider router={router} />);
 
-    const markdownInput = screen.getByLabelText(
+    const markdownInput = (await screen.findByLabelText(
       "Markdown source for blk_intro",
-    ) as unknown as {
+    )) as unknown as {
       value: string;
     };
     const originalValue = markdownInput.value;
 
     await user.click(
-      screen.getByRole("button", { name: "Generate code from blk_intro" }),
+      await screen.findByRole("button", { name: "Generate code from blk_intro" }),
     );
 
-    expect(await screen.findByText("Ready via bedrock · scope: this")).toBeInTheDocument();
-    expect(
-      screen.getByLabelText("Generated code preview for blk_intro"),
-    ).toHaveTextContent("function summarizeOrders");
+    await waitFor(() =>
+      expect(screen.queryByText("Generating...")).not.toBeInTheDocument(),
+    );
     expect(screen.getByText(/AI_CONTEXT_TRUNCATED:/)).toBeInTheDocument();
-    expect(screen.getByText("Request: air_success_3")).toBeInTheDocument();
     expect(screen.getAllByLabelText("JavaScript code block")).toHaveLength(3);
     const insertedBlockArticle = screen
       .getByRole("button", { name: "Run blk_new_code_1" })
@@ -223,6 +341,25 @@ describe("NotebookEditorPage", () => {
 
   it("reuses the next empty code block for inserted AI code", async () => {
     const user = userEvent.setup();
+    const repository = createLocalNotebookRepository();
+    await repository.save(
+      {
+        ...sampleNotebook,
+        id: SERVER_NOTEBOOK_ID,
+        title: "Reusable empty block notebook",
+        blocks: sampleNotebook.blocks.map((block) =>
+          block.id === "blk_prepare_data"
+            ? createCodeBlock("blk_prepare_data", "")
+            : block,
+        ),
+      },
+      {
+        ...DEFAULT_SYNC_META,
+        serverId: SERVER_NOTEBOOK_ID,
+        baseRevision: sampleNotebook.revision,
+        status: "synced",
+      },
+    );
 
     server.use(
       http.post(AI_GENERATE_URL, () =>
@@ -250,27 +387,23 @@ describe("NotebookEditorPage", () => {
       { initialEntries: [`/notebooks/${SERVER_NOTEBOOK_ID}`] },
     );
 
-    render(<RouterProvider router={router} />);
+    renderWithProviders(<RouterProvider router={router} />);
 
     await user.click(
-      screen.getByRole("button", { name: "Add code block below blk_observation" }),
+      await screen.findByRole("button", { name: "Generate code from blk_intro" }),
     );
 
-    const insertedBlockArticle = screen
-      .getByRole("button", { name: "Run blk_new_code_1" })
+    await waitFor(() =>
+      expect(screen.getAllByLabelText("JavaScript code block")).toHaveLength(2),
+    );
+    expect(screen.getAllByLabelText("JavaScript code block")).toHaveLength(2);
+    const reusedBlockArticle = screen
+      .getByRole("button", { name: "Run blk_prepare_data" })
       .closest("article");
-    expect(insertedBlockArticle).not.toBeNull();
-    const insertedCodeInput = within(insertedBlockArticle!).getByRole("textbox");
-    await user.click(insertedCodeInput);
-    await user.keyboard("{Control>}a{/Control}{Backspace}");
-
-    await user.click(
-      screen.getByRole("button", { name: "Generate code from blk_observation" }),
+    expect(reusedBlockArticle).not.toBeNull();
+    expect(within(reusedBlockArticle!).getByRole("textbox")).toHaveTextContent(
+      "const average = total / orders.length;",
     );
-
-    expect(await screen.findByText("Ready via bedrock · scope: this")).toBeInTheDocument();
-    expect(screen.getAllByLabelText("JavaScript code block")).toHaveLength(3);
-    expect(screen.getByText("Request: air_success_4")).toBeInTheDocument();
   });
 
   it("shows normalized backend error state without mutating the source text block", async () => {
@@ -302,18 +435,17 @@ describe("NotebookEditorPage", () => {
       { initialEntries: [`/notebooks/${SERVER_NOTEBOOK_ID}`] },
     );
 
-    render(<RouterProvider router={router} />);
+    renderWithProviders(<RouterProvider router={router} />);
 
-    const markdownInput = screen.getByLabelText("Markdown source for blk_intro");
+    const markdownInput = await screen.findByLabelText("Markdown source for blk_intro");
 
     await user.click(
-      screen.getByRole("button", { name: "Generate code from blk_intro" }),
+      await screen.findByRole("button", { name: "Generate code from blk_intro" }),
     );
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Policy via bedrock: This action accepts only code-generation or code-revision requests.",
     );
-    expect(screen.getByText("Request: air_error_1")).toBeInTheDocument();
     expect(markdownInput).toHaveValue(
       "## Explore order totals\nUse Markdown notes to explain the intent before running JavaScript examples.",
     );
@@ -341,7 +473,7 @@ describe("NotebookEditorPage", () => {
       { initialEntries: ["/notebooks/nb_jsnb_50"] },
     );
 
-    render(<RouterProvider router={router} />);
+    renderWithProviders(<RouterProvider router={router} />);
 
     await user.click(
       screen.getByRole("button", { name: "Generate code from blk_intro" }),
@@ -352,17 +484,13 @@ describe("NotebookEditorPage", () => {
       "Validation via bedrock: AI generation requires a synced notebook available on the server.",
     );
     expect(requestSpy).not.toHaveBeenCalled();
-    expect(within(introAiAction).getByText("Local WebLLM")).toBeInTheDocument();
     expect(
-      within(introAiAction).getByRole("button", {
-        name: "Generate code locally from blk_intro",
+      within(introAiAction).queryByRole("button", {
+        name: "Prepare WebLLM local mode for blk_intro",
       }),
-    ).toBeDisabled();
-    expect(
-      within(introAiAction).getByText(
-        "Backend AI requires a synced notebook. Prepare WebLLM to generate locally for this draft.",
-      ),
-    ).toBeInTheDocument();
+    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Local AI status")).toHaveTextContent("Local AI");
+    expect(screen.getByRole("button", { name: "Prepare WebLLM" })).toBeInTheDocument();
   });
 
   it("prepares WebLLM and runs explicit local generation with provider labeling", async () => {
@@ -410,20 +538,15 @@ describe("NotebookEditorPage", () => {
       { initialEntries: [`/notebooks/${SERVER_NOTEBOOK_ID}`] },
     );
 
-    render(<RouterProvider router={router} />);
+    renderWithProviders(<RouterProvider router={router} />);
 
-    const introAiAction = screen.getByLabelText("AI action for blk_intro");
-    expect(within(introAiAction).getByText("Local WebLLM")).toBeInTheDocument();
-    await user.click(
-      within(introAiAction).getByRole("button", {
-        name: "Prepare WebLLM local mode for blk_intro",
-      }),
-    );
+    await user.click(screen.getByRole("button", { name: "Prepare WebLLM" }));
 
+    await screen.findByText("test-model");
+    expect(screen.getByLabelText("Local AI status")).toHaveTextContent("Local AI");
+    expect(screen.getByLabelText("Local AI status")).toHaveTextContent("test-model");
     expect(
-      await within(screen.getByLabelText("AI action for blk_intro")).findByText(
-        "Local mode ready via webllm:test-model.",
-      ),
+      screen.getByRole("button", { name: "Reset WebLLM local mode" }),
     ).toBeInTheDocument();
 
     await user.click(
@@ -432,11 +555,14 @@ describe("NotebookEditorPage", () => {
       }),
     );
 
-    expect(await screen.findByText("Ready via webllm:test-model · scope: this")).toBeInTheDocument();
-    expect(screen.getByLabelText("Generated code preview for blk_intro")).toHaveTextContent(
+    const insertedBlockButton = await screen.findByRole("button", {
+      name: "Run blk_new_code_1",
+    });
+    const insertedBlockArticle = insertedBlockButton.closest("article");
+    expect(insertedBlockArticle).not.toBeNull();
+    expect(within(insertedBlockArticle!).getByRole("textbox")).toHaveTextContent(
       "const localTotal = orders.reduce((sum, order) => sum + order.total, 0);",
     );
-    expect(screen.getByText("Generated draft · webllm:test-model")).toBeInTheDocument();
   });
 
   it("surfaces unsupported WebLLM runtime as a frontend-local local-mode failure", async () => {
@@ -473,24 +599,21 @@ describe("NotebookEditorPage", () => {
       { initialEntries: [`/notebooks/${SERVER_NOTEBOOK_ID}`] },
     );
 
-    render(<RouterProvider router={router} />);
+    renderWithProviders(<RouterProvider router={router} />);
 
-    const introAiAction = screen.getByLabelText("AI action for blk_intro");
-    await user.click(
-      within(introAiAction).getByRole("button", {
-        name: "Prepare WebLLM local mode for blk_intro",
-      }),
+    await user.click(screen.getByRole("button", { name: "Prepare WebLLM" }));
+
+    await screen.findByText("No compatible adapter.");
+    expect(screen.getByLabelText("Local AI status")).toHaveTextContent("Unsupported");
+    expect(screen.getByLabelText("Local AI status")).toHaveTextContent(
+      "No compatible adapter.",
     );
-
-    expect(await within(introAiAction).findByText("No compatible adapter.")).toBeInTheDocument();
     expect(
-      within(introAiAction).getByRole("button", {
-        name: "Generate code locally from blk_intro",
+      screen.queryByRole("button", {
+        name: "Prepare WebLLM",
       }),
-    ).toBeDisabled();
-    expect(
-      screen.queryByLabelText("Generated code preview for blk_intro"),
     ).not.toBeInTheDocument();
+    expect(screen.queryByText("Generating...")).not.toBeInTheDocument();
   });
 
   it("surfaces WebLLM bootstrap failure without mutating notebook content", async () => {
@@ -523,24 +646,21 @@ describe("NotebookEditorPage", () => {
       { initialEntries: [`/notebooks/${SERVER_NOTEBOOK_ID}`] },
     );
 
-    render(<RouterProvider router={router} />);
+    renderWithProviders(<RouterProvider router={router} />);
 
-    const introAiAction = screen.getByLabelText("AI action for blk_intro");
-    const markdownInput = screen.getByLabelText("Markdown source for blk_intro");
-    await user.click(
-      within(introAiAction).getByRole("button", {
-        name: "Prepare WebLLM local mode for blk_intro",
-      }),
+    const markdownInput = await screen.findByLabelText("Markdown source for blk_intro");
+    await user.click(screen.getByRole("button", { name: "Prepare WebLLM" }));
+
+    await screen.findByText("Model bootstrap crashed.");
+    expect(screen.getByLabelText("Local AI status")).toHaveTextContent("Failed");
+    expect(screen.getByLabelText("Local AI status")).toHaveTextContent(
+      "Model bootstrap crashed.",
     );
-
-    expect(await within(introAiAction).findByText("Model bootstrap crashed.")).toBeInTheDocument();
     expect(markdownInput).toHaveValue(
       "## Explore order totals\nUse Markdown notes to explain the intent before running JavaScript examples.",
     );
     expect(screen.getAllByLabelText("JavaScript code block")).toHaveLength(2);
-    expect(
-      screen.queryByLabelText("Generated code preview for blk_intro"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Generating...")).not.toBeInTheDocument();
   });
 
   it("allows explicit local generation for an unsynced local notebook draft", async () => {
@@ -584,6 +704,16 @@ describe("NotebookEditorPage", () => {
       }),
     );
 
+    const repository = createLocalNotebookRepository();
+    await repository.save(
+      {
+        ...sampleNotebook,
+        id: "local-draft-1",
+        title: "Untitled",
+      },
+      DEFAULT_SYNC_META,
+    );
+
     const user = userEvent.setup();
     const router = createMemoryRouter(
       [
@@ -595,26 +725,15 @@ describe("NotebookEditorPage", () => {
       { initialEntries: ["/notebooks/local-draft-1"] },
     );
 
-    render(<RouterProvider router={router} />);
+    renderWithProviders(<RouterProvider router={router} />);
 
-    const introAiAction = screen.getByLabelText("AI action for blk_intro");
-    expect(
-      within(introAiAction).getByText(
-        "Backend AI requires a synced notebook. Prepare WebLLM to generate locally for this draft.",
-      ),
-    ).toBeInTheDocument();
+    const introAiAction = await screen.findByLabelText("AI action for blk_intro");
+    expect(screen.getByLabelText("Local AI status")).toHaveTextContent("Local AI");
 
-    await user.click(
-      within(introAiAction).getByRole("button", {
-        name: "Prepare WebLLM local mode for blk_intro",
-      }),
-    );
+    await user.click(screen.getByRole("button", { name: "Prepare WebLLM" }));
 
-    expect(
-      await within(introAiAction).findByText(
-        "Backend AI requires a synced notebook. Local mode ready via webllm:test-model.",
-      ),
-    ).toBeInTheDocument();
+    await screen.findByText("test-model");
+    expect(screen.getByLabelText("Local AI status")).toHaveTextContent("test-model");
 
     await user.click(
       within(introAiAction).getByRole("button", {
@@ -623,8 +742,11 @@ describe("NotebookEditorPage", () => {
     );
 
     expect(requestSpy).not.toHaveBeenCalled();
-    expect(await screen.findByText("Ready via webllm:test-model · scope: this")).toBeInTheDocument();
-    expect(screen.getByLabelText("Generated code preview for blk_intro")).toHaveTextContent(
+    const localInsertedBlockArticle = (
+      await screen.findByRole("button", { name: "Run blk_new_code_1" })
+    ).closest("article");
+    expect(localInsertedBlockArticle).not.toBeNull();
+    expect(within(localInsertedBlockArticle!).getByRole("textbox")).toHaveTextContent(
       "const draftResult = 'local-only';",
     );
   });
@@ -688,19 +810,11 @@ describe("NotebookEditorPage", () => {
       { initialEntries: [`/notebooks/${SERVER_NOTEBOOK_ID}`] },
     );
 
-    render(<RouterProvider router={router} />);
+    renderWithProviders(<RouterProvider router={router} />);
 
-    const introAiAction = screen.getByLabelText("AI action for blk_intro");
-    await user.click(
-      within(introAiAction).getByRole("button", {
-        name: "Prepare WebLLM local mode for blk_intro",
-      }),
-    );
-    expect(
-      await within(screen.getByLabelText("AI action for blk_intro")).findByText(
-        "Local mode ready via webllm:test-model.",
-      ),
-    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Prepare WebLLM" }));
+    await screen.findByText("test-model");
+    expect(screen.getByLabelText("Local AI status")).toHaveTextContent("test-model");
 
     await user.click(
       within(screen.getByLabelText("AI action for blk_intro")).getByRole("button", {
@@ -708,14 +822,16 @@ describe("NotebookEditorPage", () => {
       }),
     );
 
-    expect(await within(screen.getByLabelText("AI action for blk_intro")).findByRole("alert")).toHaveTextContent(
-      "Provider via bedrock: The AI provider timed out.",
-    );
+    expect(
+      await within(screen.getByLabelText("AI action for blk_intro")).findByRole(
+        "alert",
+      ),
+    ).toHaveTextContent("Provider via bedrock: The AI provider timed out.");
     expect(
       within(screen.getByLabelText("AI action for blk_intro")).getByRole("button", {
         name: "Generate code locally from blk_intro",
       }),
-    ).toHaveTextContent("Retry locally with WebLLM");
+    ).toHaveAttribute("title", "Retry locally with WebLLM");
 
     await user.click(
       within(screen.getByLabelText("AI action for blk_intro")).getByRole("button", {
@@ -723,9 +839,12 @@ describe("NotebookEditorPage", () => {
       }),
     );
 
-    expect(await screen.findByText("Ready via webllm:test-model · scope: this")).toBeInTheDocument();
-    expect(screen.getByLabelText("Generated code preview for blk_intro")).toHaveTextContent(
-      "const fallbackTotal = orders.length;",
-    );
+    const fallbackInsertedBlockArticle = (
+      await screen.findByRole("button", { name: "Run blk_new_code_1" })
+    ).closest("article");
+    expect(fallbackInsertedBlockArticle).not.toBeNull();
+    expect(
+      within(fallbackInsertedBlockArticle!).getByRole("textbox"),
+    ).toHaveTextContent("const fallbackTotal = orders.length;");
   });
 });

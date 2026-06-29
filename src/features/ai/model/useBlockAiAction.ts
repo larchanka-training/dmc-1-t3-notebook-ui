@@ -123,7 +123,9 @@ function errorKindLabel(kind: BlockAiErrorState["kind"]): string {
   }
 }
 
-function formatProviderLabel(provider: AiGenerationProviderMetadata | null): string | null {
+function formatProviderLabel(
+  provider: AiGenerationProviderMetadata | null,
+): string | null {
   if (!provider) {
     return null;
   }
@@ -209,101 +211,92 @@ export function useBlockAiAction({
     () => resolveLocalAiNotebookId(notebookId, serverNotebookId),
     [notebookId, serverNotebookId],
   );
-  const isBackendNotebookEligible = backendNotebookId !== null;
-  const isLocalNotebookEligible = localNotebookId !== null;
-  const isUnsyncedLocalDraft = !isBackendNotebookEligible && isLocalNotebookEligible;
+  const runGenerate = useCallback(
+    async (mode: "backend" | "local") => {
+      const aiNotebookId = mode === "local" ? localNotebookId : backendNotebookId;
+      const context = buildAiRequestContext({
+        blocks,
+        sourceBlock: block,
+        notebookTitle,
+      });
+      const selectedProvider =
+        mode === "local" ? localRuntime.provider : BACKEND_PENDING_PROVIDER;
 
-  const runGenerate = useCallback(async (mode: "backend" | "local") => {
-    const aiNotebookId = mode === "local" ? localNotebookId : backendNotebookId;
-    const context = buildAiRequestContext({
-      blocks,
-      sourceBlock: block,
-      notebookTitle,
-    });
-    const selectedProvider =
-      mode === "local" ? localRuntime.provider : BACKEND_PENDING_PROVIDER;
-
-    setState((previous) => ({
-      ...previous,
-      status: "submitting",
-      derivedPrompt: context.prompt,
-      scope: context.scope,
-      provider: selectedProvider,
-      error: null,
-      warnings: [],
-    }));
-
-    if (aiNotebookId === null) {
       setState((previous) => ({
         ...previous,
-        status: "error",
-        provider: selectedProvider,
-        error:
-          mode === "local"
-            ? toLocalValidationError(selectedProvider)
-            : toBackendValidationError(selectedProvider),
-      }));
-      return;
-    }
-
-    try {
-      const response = await (mode === "local" ? localProvider : provider).generate(
-        createGenerationRequest({
-          notebookId: aiNotebookId,
-          blockId: block.id,
-          prompt: context.prompt,
-          scope: context.scope,
-          sourceText: context.sourceText,
-          notebookTitle: context.notebookTitle,
-          relevantBlocks: context.relevantBlocks,
-        }),
-      );
-
-      onInsertCode?.(block.id, response.code);
-
-      setState({
-        status: "success",
+        status: "submitting",
         derivedPrompt: context.prompt,
         scope: context.scope,
-        lastRequestId: response.requestId,
-        lastResponseCode: response.code,
-        provider: response.provider,
-        warnings: response.warnings,
+        provider: selectedProvider,
         error: null,
-      });
-    } catch (error) {
-      const nextError = withProviderFallback(toAiErrorState(error), selectedProvider);
-      setState((previous) => ({
-        ...previous,
-        status: "error",
-        lastRequestId: nextError.requestId,
-        provider: nextError.provider,
-        error: nextError,
+        warnings: [],
       }));
-    }
-  }, [
-    block,
-    blocks,
-    backendNotebookId,
-    localProvider,
-    localNotebookId,
-    localRuntime.provider,
-    notebookTitle,
-    onInsertCode,
-    provider,
-  ]);
 
-  const prepareLocalMode = useCallback(async () => {
-    await localRuntime.initialize();
-  }, [localRuntime]);
+      if (aiNotebookId === null) {
+        setState((previous) => ({
+          ...previous,
+          status: "error",
+          provider: selectedProvider,
+          error:
+            mode === "local"
+              ? toLocalValidationError(selectedProvider)
+              : toBackendValidationError(selectedProvider),
+        }));
+        return;
+      }
+
+      try {
+        const response = await (mode === "local" ? localProvider : provider).generate(
+          createGenerationRequest({
+            notebookId: aiNotebookId,
+            blockId: block.id,
+            prompt: context.prompt,
+            scope: context.scope,
+            sourceText: context.sourceText,
+            notebookTitle: context.notebookTitle,
+            relevantBlocks: context.relevantBlocks,
+          }),
+        );
+
+        onInsertCode?.(block.id, response.code);
+
+        setState({
+          status: "success",
+          derivedPrompt: context.prompt,
+          scope: context.scope,
+          lastRequestId: response.requestId,
+          lastResponseCode: response.code,
+          provider: response.provider,
+          warnings: response.warnings,
+          error: null,
+        });
+      } catch (error) {
+        const nextError = withProviderFallback(toAiErrorState(error), selectedProvider);
+        setState((previous) => ({
+          ...previous,
+          status: "error",
+          lastRequestId: nextError.requestId,
+          provider: nextError.provider,
+          error: nextError,
+        }));
+      }
+    },
+    [
+      block,
+      blocks,
+      backendNotebookId,
+      localProvider,
+      localNotebookId,
+      localRuntime.provider,
+      notebookTitle,
+      onInsertCode,
+      provider,
+    ],
+  );
 
   const canGenerate = state.status !== "submitting" && derived.prompt.length > 0;
   const isSubmitting = state.status === "submitting";
   const localModeEnabled = localRuntimeConfig.enabled;
-  const canPrepareLocal =
-    localModeEnabled &&
-    state.status !== "submitting" &&
-    (localRuntime.status === "idle" || localRuntime.status === "failed");
   const canGenerateLocally =
     localModeEnabled &&
     state.status !== "submitting" &&
@@ -327,20 +320,6 @@ export function useBlockAiAction({
   const errorSummary = state.error
     ? `${errorKindLabel(state.error.kind)}${providerLabel ? ` via ${providerLabel}` : ""}: ${state.error.message}`
     : null;
-  const localRuntimeSummary =
-    localRuntime.status === "loading-model"
-      ? localRuntime.progressLabel ?? "Preparing WebLLM local mode..."
-      : localRuntime.status === "ready"
-        ? isUnsyncedLocalDraft
-          ? `Backend AI requires a synced notebook. Local mode ready via ${localRuntime.provider.label}.`
-          : `Local mode ready via ${localRuntime.provider.label}.`
-        : !localModeEnabled
-          ? "Local WebLLM is disabled in the current frontend runtime configuration."
-          : isUnsyncedLocalDraft
-            ? localRuntime.error?.message ??
-              "Backend AI requires a synced notebook. Prepare WebLLM to generate locally for this draft."
-            : localRuntime.error?.message ?? "Local WebLLM mode is available on demand.";
-
   return {
     status: state.status,
     statusLabel,
@@ -352,15 +331,12 @@ export function useBlockAiAction({
     provider: state.provider,
     error: state.error,
     errorSummary,
-    localModeEnabled: true,
+    localModeEnabled,
     localRuntimeStatus: localRuntime.status,
-    localRuntimeSummary,
-    canPrepareLocal,
     canGenerateLocally,
     canRetryLocally,
     requestId: state.lastRequestId,
     onGenerate: () => runGenerate("backend"),
     onGenerateLocally: () => runGenerate("local"),
-    onPrepareLocalMode: prepareLocalMode,
   };
 }

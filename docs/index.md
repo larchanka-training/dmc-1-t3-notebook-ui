@@ -128,7 +128,15 @@ When a page has no early-return guard, render the feature view directly (for exa
 ### UX and QA
 
 - `screen_specs.md`
-  - Screen-by-screen Version 1 specification for `/login`, `/notebooks`, and `/notebooks/:notebookId`.
+  - Screen-by-screen Version 1 specification for `/login`, `/notebooks`, `/help`, and `/notebooks/:notebookId`.
+
+- `help_content.md`
+  - Canonical source text for the future in-app help page.
+  - Defines Version 1 help topics and user-facing copy used by the in-app help route.
+
+- `notebook_editor_sidebar.md`
+  - Notebook editor left sidebar artifact and shell behavior.
+  - Defines collapse states, scroll ownership, bottom utility anchoring, and notebook item behavior.
 
 - `design_tokens.md`
   - Design tokens and Tailwind/shadcn theme direction for notebook UI chrome.

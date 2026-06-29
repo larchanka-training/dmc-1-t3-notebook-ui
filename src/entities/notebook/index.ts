@@ -23,6 +23,11 @@ export {
 } from "./lib/notebookModel";
 export { sampleNotebook } from "./lib/sampleNotebook";
 export {
+  DEFAULT_NOTEBOOK_TITLE,
+  createLocalDraftNotebook,
+  normalizeNotebookTitle,
+} from "./lib/localDraftNotebook";
+export {
   CURRENT_NOTEBOOK_SCHEMA_VERSION,
   DEFAULT_SYNC_META,
   fromPersistedRecord,
@@ -36,6 +41,7 @@ export {
 } from "./lib/notebookRepository";
 export { createLocalNotebookRepository } from "./lib/localNotebookRepository";
 export {
+  applyServerNotebookMetadata,
   toServerSnapshot,
   fromServerNotebook,
   type ServerNotebook,
